@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" class="night-mode">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>New_vacancy | NV — India's Job Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap"/>
+  
+  <!-- CRITICAL: Set theme class BEFORE React loads to prevent flash -->
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('nv-theme') || 'dark';
+        var html = document.documentElement;
+        html.className = t === 'dark' ? 'night-mode' : 'day-mode';
+        if (t === 'dark') { html.classList.add('night'); }
+        else { html.classList.add('day'); }
+      } catch(e) {
+        document.documentElement.className = 'night-mode night';
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
