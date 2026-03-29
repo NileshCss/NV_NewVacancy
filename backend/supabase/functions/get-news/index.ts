@@ -13,32 +13,20 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const url = new URL(req.url)
-    const category = url.searchParams.get('category') || undefined
-    const page = Number(url.searchParams.get('page') || '1')
-    const limit = Number(url.searchParams.get('limit') || '9')
+    let query = supabase.from('news').select('*').order('published_at', { ascending: false }).limit(20)
+    const { data, error } = await query
 
-    let query = supabase
-      .from('news')
-      .select('*', { count: 'exact' })
-      .eq('is_active', true)
-      .order('published_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1)
-
-    if (category) query = query.eq('category', category)
-
-    const { data, count, error } = await query
     if (error) throw error
 
-    return new Response(JSON.stringify({ news: data ?? [], total: count ?? 0, page, limit }), {
+    return new Response(JSON.stringify(data), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error?.message ?? 'Unknown error' }), {
+    return new Response(JSON.stringify({ error: error.message ?? 'Server Error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

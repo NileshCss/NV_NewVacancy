@@ -11,51 +11,34 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '')
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    const { jobId } = await req.json()
-    if (!jobId) {
-      return new Response(JSON.stringify({ error: 'jobId is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { job_id } = await req.json()
+    if (!job_id) throw new Error('Valid Job ID is required')
+
+    // Get current authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) throw new Error('Unauthorized')
+
+    // Toggle saved job
+    const { data: existing } = await supabase.from('saved_jobs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('job_id', job_id)
+      .single()
+
+    if (existing) {
+      await supabase.from('saved_jobs').delete().eq('user_id', user.id).eq('job_id', job_id)
+      return new Response(JSON.stringify({ message: 'Removed from saved jobs', status: 'removed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    } else {
+      await supabase.from('saved_jobs').insert({ user_id: user.id, job_id })
+      return new Response(JSON.stringify({ message: 'Added to saved jobs', status: 'saved' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
-
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData?.user
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const { error } = await supabase
-      .from('saved_jobs')
-      .upsert({ user_id: user.id, job_id: jobId }, { onConflict: 'user_id,job_id' })
-
-    if (error) throw error
-
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error?.message ?? 'Unknown error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })

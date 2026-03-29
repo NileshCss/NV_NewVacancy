@@ -1,4 +1,5 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ══ NIGHT MODE (default) ══ */
 :root{
@@ -76,6 +77,65 @@
   --dropdown-bg:#FFFFFF;
   --stats-bg:   #EEF2F7;
   --filter-bg:  #FFFFFF;
+}
+
+/* ══  PLUS SIGN BACKGROUND PATTERN ══ */
+@keyframes plusDrift {
+  0%   { background-position: 0px 0px; }
+  100% { background-position: 40px 40px; }
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' font-family='Arial' fill='%23f97316' fill-opacity='0.07'%3E%2B%3C/text%3E%3C/svg%3E");
+  background-size: 40px 40px;
+  background-repeat: repeat;
+  animation: plusDrift 20s linear infinite;
+}
+
+/* Day mode — lighter orange */
+:root.day body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' font-family='Arial' fill='%23FF7A00' fill-opacity='0.06'%3E%2B%3C/text%3E%3C/svg%3E");
+}
+
+/* Night mode — subtle glowing orange */
+:root.night body::before,
+:root body::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' font-family='Arial' fill='%23f97316' fill-opacity='0.07'%3E%2B%3C/text%3E%3C/svg%3E");
+}
+
+/* All direct children of body sit above the pattern */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero section — slightly stronger + pattern overlay */
+.hero {
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20' font-family='Arial' fill='%23f97316' fill-opacity='0.09'%3E%2B%3C/text%3E%3C/svg%3E");
+  background-size: 40px 40px;
+  background-repeat: repeat;
+  animation: plusDrift 20s linear infinite;
+}
+
+/* Hero content must stay above its own + overlay */
+.hero .container,
+.hero > *:not(.hero::after) {
+  position: relative;
+  z-index: 1;
 }
 
 /* ══ THEME TOGGLE BUTTON ══ */

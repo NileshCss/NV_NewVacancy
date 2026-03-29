@@ -40,8 +40,8 @@ export default function Footer() {
           </div>
         </div>
         <div className="footer-bottom">
-          <div className="footer-copy">© 2025 New_vacancy (NV). Made in 🇮🇳 India</div>
-          <div className="footer-badge">⚡ Powered by Supabase + React</div>
+          <div className="footer-copy">© 2025 New_vacancy (NV). Made in India</div>
+          <div className="footer-badge">⚡ Founder Nilesh Singh</div>
         </div>
       </div>
     </footer>

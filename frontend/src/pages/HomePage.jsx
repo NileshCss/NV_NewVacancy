@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from '../context/RouterContext'
 import { useToast } from '../context/ToastContext'
+import { useQuery } from '@tanstack/react-query'
 import JobCard from '../components/JobCard'
 import NewsCard from '../components/NewsCard'
 import AffiliateSidebar from '../components/AffiliateSidebar'
 import SkeletonCard from '../components/SkeletonCard'
-import { ALL_JOBS, NEWS_DATA, AFFILIATES } from '../data/mockData'
+import { fetchJobs, fetchNews, fetchAffiliates } from '../services/api'
 
 export default function HomePage() {
   const { navigate } = useRouter()
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const featuredJobs = ALL_JOBS.filter(j => j.is_featured).slice(0, 6)
-  const featuredNews = NEWS_DATA.filter(n => n.is_featured).slice(0, 4)
-  const heroAff = AFFILIATES.find(a => a.placement === 'hero')
   const toast = useToast()
 
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 800); return () => clearTimeout(t); }, [])
+  const { data: jobs, isLoading: jobsLoading, isError: jobsError } = useQuery({ queryKey: ['jobs'], queryFn: () => fetchJobs() })
+  const { data: news, isLoading: newsLoading, isError: newsError } = useQuery({ queryKey: ['news'], queryFn: fetchNews })
+  const { data: affiliates, isLoading: affLoading } = useQuery({ queryKey: ['affiliates'], queryFn: fetchAffiliates })
+
+  const featuredJobs = jobs?.filter(j => j.is_featured)?.slice(0, 6) || []
+  const featuredNews = news?.filter(n => n.is_featured)?.slice(0, 4) || []
+  const heroAff = affiliates?.find(a => a.placement === 'hero')
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -45,7 +48,7 @@ export default function HomePage() {
             Find Your Dream
             <span className="accent">Govt & Private Jobs</span>
           </h1>
-          <p className="anim-up anim-d1">Daily updates on SSC, UPSC, Railway, Banking, IT jobs and more. Never miss a vacancy.</p>
+          <p className="anim-up anim-d1" style={{ color: 'var(--text-secondary)' }}>Daily updates on SSC, UPSC, Railway, Banking, IT jobs and more. Never miss a vacancy.</p>
 
           <form onSubmit={handleSearch} className="search-bar anim-up anim-d2">
             <div className="search-wrap">
@@ -70,7 +73,7 @@ export default function HomePage() {
             {STATS.map(s => (
               <div key={s.label} className="stat-item">
                 <div className="stat-icon">{s.icon}</div>
-                <div><div className="stat-val">{s.val}</div><div className="stat-label">{s.label}</div></div>
+                <div><div className="stat-val" style={{ color: 'var(--text-primary)' }}>{s.val}</div><div className="stat-label" style={{ color: 'var(--text-secondary)' }}>{s.label}</div></div>
               </div>
             ))}
           </div>
@@ -82,14 +85,14 @@ export default function HomePage() {
         <div className="grid-main">
           <div>
             {/* Hero Affiliate */}
-            {heroAff && (
-              <div className="aff-banner" style={{ marginBottom: '1.75rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}
+            {!affLoading && heroAff && (
+              <div className="aff-banner" style={{ marginBottom: '1.75rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-card)' }}
                    onClick={() => window.open(heroAff.redirect_url, '_blank')}>
                 <div className="aff-ad-label">Sponsored</div>
-                <div style={{ fontSize: '2.5rem' }}>{heroAff.emoji}</div>
+                <div style={{ fontSize: '2.5rem' }}>{heroAff.emoji || '🎁'}</div>
                 <div>
-                  <div style={{ fontWeight: 700, color: '#fff', marginBottom: '.25rem' }}>{heroAff.name}</div>
-                  <div style={{ fontSize: '.82rem', color: 'var(--grey-4)' }}>{heroAff.description}</div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '.25rem' }}>{heroAff.name}</div>
+                  <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{heroAff.description}</div>
                 </div>
                 <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>Explore →</button>
               </div>
@@ -99,15 +102,15 @@ export default function HomePage() {
             <div className="cat-grid">
               <div className="cat-card govt" onClick={() => navigate('govt-jobs')}>
                 <div className="cat-emoji">🏛️</div>
-                <div className="cat-title">Government Jobs</div>
-                <div className="cat-sub">SSC, UPSC, Railway, Bank, Police</div>
-                <div className="cat-link">Browse All →</div>
+                <div className="cat-title" style={{ color: 'var(--text-primary)' }}>Government Jobs</div>
+                <div className="cat-sub" style={{ color: 'var(--text-muted)' }}>SSC, UPSC, Railway, Bank, Police</div>
+                <div className="cat-link" style={{ color: 'var(--brand)' }}>Browse All →</div>
               </div>
               <div className="cat-card pvt" onClick={() => navigate('private-jobs')}>
                 <div className="cat-emoji">💼</div>
-                <div className="cat-title">Private Jobs</div>
-                <div className="cat-sub">IT, Finance, Marketing, Engineering</div>
-                <div className="cat-link">Browse All →</div>
+                <div className="cat-title" style={{ color: 'var(--text-primary)' }}>Private Jobs</div>
+                <div className="cat-sub" style={{ color: 'var(--text-muted)' }}>IT, Finance, Marketing, Engineering</div>
+                <div className="cat-link" style={{ color: 'var(--blue)' }}>Browse All →</div>
               </div>
             </div>
 
@@ -115,13 +118,26 @@ export default function HomePage() {
             <div>
               <div className="section-header">
                 <div>
-                  <div className="section-title">⭐ Featured Jobs</div>
-                  <div className="section-sub">Handpicked latest opportunities</div>
+                  <div className="section-title" style={{ color: 'var(--text-primary)' }}>⭐ Featured Jobs</div>
+                  <div className="section-sub" style={{ color: 'var(--text-muted)' }}>Handpicked latest opportunities</div>
                 </div>
-                <span className="see-all" onClick={() => navigate('govt-jobs')}>View all →</span>
+                <span className="see-all" onClick={() => navigate('govt-jobs')} style={{ color: 'var(--brand-l)' }}>View all →</span>
               </div>
-              {loading ? (
+              
+              {jobsError ? (
+                <div className="empty-state">
+                  <div className="empty-icon">⚠️</div>
+                  <div className="empty-title" style={{ color: 'var(--text-primary)' }}>Failed to load jobs</div>
+                  <div className="empty-text" style={{ color: 'var(--text-muted)' }}>Please check your connection and try again.</div>
+                </div>
+              ) : jobsLoading ? (
                 <div className="jobs-grid">{[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}</div>
+              ) : featuredJobs.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🔍</div>
+                  <div className="empty-title" style={{ color: 'var(--text-primary)' }}>No featured jobs yet</div>
+                  <div className="empty-text" style={{ color: 'var(--text-muted)' }}>Check back later for new opportunities.</div>
+                </div>
               ) : (
                 <div className="jobs-grid">
                   {featuredJobs.map(j => <JobCard key={j.id} job={j} />)}
@@ -133,14 +149,29 @@ export default function HomePage() {
             <div style={{ marginTop: '2.5rem' }}>
               <div className="section-header">
                 <div>
-                  <div className="section-title">📰 Latest News</div>
-                  <div className="section-sub">Tech & Govt updates</div>
+                  <div className="section-title" style={{ color: 'var(--text-primary)' }}>📰 Latest News</div>
+                  <div className="section-sub" style={{ color: 'var(--text-muted)' }}>Tech & Govt updates</div>
                 </div>
-                <span className="see-all" onClick={() => navigate('news')}>All news →</span>
+                <span className="see-all" onClick={() => navigate('news')} style={{ color: 'var(--brand-l)' }}>All news →</span>
               </div>
-              <div className="news-grid">
-                {featuredNews.map(a => <NewsCard key={a.id} article={a} />)}
-              </div>
+
+              {newsError ? (
+                <div className="empty-state">
+                  <div className="empty-icon">⚠️</div>
+                  <div className="empty-title" style={{ color: 'var(--text-primary)' }}>Failed to load news</div>
+                </div>
+              ) : newsLoading ? (
+                 <div className="news-grid">{[1, 2].map(i => <SkeletonCard key={i} />)}</div>
+              ) : featuredNews.length === 0 ? (
+                 <div className="empty-state">
+                  <div className="empty-icon">📰</div>
+                  <div className="empty-title" style={{ color: 'var(--text-primary)' }}>No news found</div>
+                </div>
+              ) : (
+                <div className="news-grid">
+                  {featuredNews.map(a => <NewsCard key={a.id} article={a} />)}
+                </div>
+              )}
             </div>
           </div>
 

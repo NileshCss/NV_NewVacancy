@@ -13,37 +13,34 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
     const url = new URL(req.url)
-    const category = url.searchParams.get('category') || undefined
-    const state = url.searchParams.get('state') || undefined
-    const search = url.searchParams.get('search') || undefined
-    const page = Number(url.searchParams.get('page') || '1')
-    const limit = Number(url.searchParams.get('limit') || '12')
+    const category = url.searchParams.get('category')
+    const limit = parseInt(url.searchParams.get('limit') || '50')
 
-    let query = supabase
-      .from('jobs')
-      .select('*', { count: 'exact' })
-      .eq('is_active', true)
-      .order('posted_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1)
+    let query = supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(limit)
 
-    if (category) query = query.eq('category', category)
-    if (state) query = query.eq('state', state)
-    if (search) query = query.ilike('title', `%${search}%`)
+    if (category) {
+      if (!['govt', 'private'].includes(category)) {
+        throw new Error('Invalid category format')
+      }
+      query = query.eq('category', category)
+    }
 
-    const { data, count, error } = await query
+    const { data, error } = await query
+
     if (error) throw error
 
-    return new Response(JSON.stringify({ jobs: data ?? [], total: count ?? 0, page, limit }), {
+    return new Response(JSON.stringify(data), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error?.message ?? 'Unknown error' }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: error.message ?? 'Internal server error' }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

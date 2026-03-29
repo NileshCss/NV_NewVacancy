@@ -11,45 +11,39 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    const { affiliateId, userId, ipAddress, userAgent } = await req.json()
-    if (!affiliateId) {
-      return new Response(JSON.stringify({ error: 'affiliateId is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const { target_id } = await req.json()
+    if (!target_id) throw new Error('Valid target_id required')
 
-    const { error: logError } = await supabase.from('affiliate_clicks').insert({
-      affiliate_id: affiliateId,
-      user_id: userId ?? null,
-      ip_address: ipAddress ?? null,
-      user_agent: userAgent ?? null,
+    // Call RPC using the user's logged-in identity or anon
+    const { error } = await supabase.rpc('increment_affiliate_clicks', { aff_id: target_id })
+
+    // Optionally log click metrics with IP/UA
+    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+    const ua = req.headers.get('user-agent') || 'unknown'
+    
+    // We attempt to get user info if logged in (not guaranteed)
+    const { data: { session } } = await supabase.auth.getSession()
+
+    await supabase.from('affiliate_clicks').insert({
+      affiliate_id: target_id,
+      user_id: session?.user?.id ?? null,
+      ip_address: ip,
+      user_agent: ua
     })
-    if (logError) throw logError
 
-    const { error: rpcError } = await supabase.rpc('increment_affiliate_clicks', { aff_id: affiliateId })
-    if (rpcError) throw rpcError
+    if (error) throw error
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error?.message ?? 'Unknown error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
