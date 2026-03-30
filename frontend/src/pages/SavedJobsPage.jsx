@@ -42,7 +42,7 @@ export default function SavedJobsPage() {
         )}
 
         {isLoading ? (
-           <div className="jobs-grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))' }}>{[1, 2, 3].map(i => <SkeletonCard key={i} />)}</div>
+           <div className="jobs-grid">{[1, 2, 3].map(i => <SkeletonCard key={i} />)}</div>
         ) : saved.length === 0 && !isError ? (
           <div className="empty-state">
             <div className="empty-icon">🔖</div>
@@ -51,7 +51,7 @@ export default function SavedJobsPage() {
             <button className="btn btn-primary" style={{ marginTop: '1.25rem' }} onClick={() => navigate('govt-jobs')}>Browse Jobs</button>
           </div>
         ) : (
-          <div className="jobs-grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))' }}>
+          <div className="jobs-grid">
             {saved.map(j => <JobCard key={j.id} job={j} />)}
           </div>
         )}

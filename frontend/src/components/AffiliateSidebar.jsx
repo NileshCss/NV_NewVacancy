@@ -24,19 +24,19 @@ export default function AffiliateSidebar() {
   return (
     <div>
       <div className="sidebar-title" style={{ color: 'var(--text-muted)' }}>Sponsored</div>
-      {isError && <div style={{ color: 'var(--red)' }}>Failed to load partners</div>}
-      
+      {isError && <div style={{ color: 'var(--red)', fontSize: '.82rem' }}>Failed to load partners</div>}
+
       {isLoading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 80 }} />)}
+        <div className="aff-sidebar-grid">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 80, borderRadius: 12 }} />)}
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+      ) : items.length === 0 ? null : (
+        <div className="aff-sidebar-grid">
           {items.map(aff => (
             <div key={aff.id} className="aff-banner" style={{ background: 'var(--bg-card)' }} onClick={() => handleClick(aff)}>
               <div className="aff-ad-label">Ad</div>
               <div className="aff-body">
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>{aff.emoji || '💼'}</div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>{aff.emoji || '💼'}</div>
                 <div className="aff-info">
                   <div className="aff-name" style={{ color: 'var(--text-primary)' }}>{aff.name}</div>
                   <div className="aff-desc" style={{ color: 'var(--text-muted)' }}>{aff.description}</div>

@@ -34,7 +34,7 @@ export default function App() {
     if (path === '/auth/callback' || hasOAuthCode || hasHashToken) {
       navigate('auth/callback')
     }
-  }, [])  // eslint-disable-line
+  }, [navigate])
 
   const renderPage = () => {
     switch (page) {

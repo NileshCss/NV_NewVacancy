@@ -39,12 +39,12 @@ export default function Navbar() {
       await signOut()
     } catch (err) {
       // signOut() in AuthContext already catches internal errors.
-      // This catch is a last-resort safety net — log but don't alarm user
-      // since the session is already cleared from state.
       console.warn('[NV] Logout catch (state already cleared):', err?.message)
+    } finally {
+      // Always navigate home — even if Supabase threw an error,
+      // the local state is already cleared so the user is effectively logged out.
+      navigate('home')
     }
-    // Navigate to home — the auth state change will handle the UI update
-    navigate('home')
   }
 
   const go = (dest) => { navigate(dest); setDropOpen(false); setMobileOpen(false) }
@@ -88,21 +88,21 @@ export default function Navbar() {
                 {/* Avatar trigger */}
                 <div
                   id="user-menu-trigger"
-                  style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer', padding: '.3rem .6rem', borderRadius: '10px', transition: 'background .2s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '.35rem', cursor: 'pointer', padding: '.3rem .5rem', borderRadius: '10px', transition: 'background .2s', minWidth: 0, flexShrink: 1, maxWidth: '100%' }}
                   onClick={() => setDropOpen(!dropOpen)}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--white-8)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div className="avatar">{avatarLetter}</div>
-                  <span style={{ fontSize: '.82rem', color: 'var(--text-secondary)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="avatar" style={{ flexShrink: 0 }}>{avatarLetter}</div>
+                  <span className="nav-user-name" style={{ fontSize: '.82rem', color: 'var(--text-secondary)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {displayName}
                   </span>
                   {showAdmin && (
-                    <span style={{ fontSize: '.6rem', background: 'var(--brand)', color: '#fff', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, letterSpacing: '.03em' }}>
+                    <span className="nav-admin-badge" style={{ fontSize: '.6rem', background: 'var(--brand)', color: '#fff', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, letterSpacing: '.03em', flexShrink: 0 }}>
                       ADMIN
                     </span>
                   )}
-                  <span style={{ color: 'var(--text-muted)', fontSize: '.7rem', transition: 'transform .2s', transform: dropOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '.7rem', transition: 'transform .2s', transform: dropOpen ? 'rotate(180deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
                 </div>
 
                 {/* Dropdown */}

@@ -1,17 +1,22 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
 import { useToast } from '../context/ToastContext'
 import { isSupabaseConfigured } from '../services/supabase'
 
 export default function SignupPage() {
-  const { signUp, signInWithGoogle } = useAuth()
+  const { signUp, signInWithGoogle, user, loading } = useAuth()
   const { navigate } = useRouter()
   const toast = useToast()
-  const [form, setForm]       = useState({ name: '', email: '', password: '' })
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors]   = useState({})
+  const [form, setForm]         = useState({ name: '', email: '', password: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [errors, setErrors]     = useState({})
   const configured = isSupabaseConfigured()
+
+  // ── Redirect if already logged in ───────────────────────────────────
+  useEffect(() => {
+    if (!loading && user) navigate('home')
+  }, [user, loading, navigate])
 
   // ── Field-level validation ───────────────────────────────────
   const validate = () => {
@@ -34,7 +39,7 @@ export default function SignupPage() {
       toast('⚠️ Supabase not configured. Add .env file.', 'error')
       return
     }
-    setLoading(true)
+    setSubmitting(true)
     setErrors({})
     try {
       const result = await signUp({
@@ -64,7 +69,7 @@ export default function SignupPage() {
         toast(msg || 'Signup failed. Try again.', 'error')
       }
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -74,12 +79,12 @@ export default function SignupPage() {
       toast('⚠️ Supabase not configured. Add .env file.', 'error')
       return
     }
-    setLoading(true)
+    setSubmitting(true)
     try {
       await signInWithGoogle()
     } catch (err) {
       toast(err.message || 'Google sign-up failed', 'error')
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -120,7 +125,7 @@ export default function SignupPage() {
           <button
             className="google-btn"
             onClick={handleGoogle}
-            disabled={loading}
+            disabled={submitting}
             type="button"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -129,7 +134,7 @@ export default function SignupPage() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            {loading ? 'Please wait...' : 'Continue with Google'}
+            {submitting ? 'Please wait...' : 'Continue with Google'}
           </button>
 
           <div className="divider">
@@ -151,7 +156,7 @@ export default function SignupPage() {
                   placeholder={f.p}
                   value={form[f.k]}
                   onChange={setField(f.k)}
-                  disabled={loading}
+                  disabled={submitting}
                 />
                 {errors[f.k] && (
                   <div style={{ color: 'var(--red)', fontSize: '.75rem', marginTop: '.3rem' }}>{errors[f.k]}</div>
@@ -159,8 +164,8 @@ export default function SignupPage() {
               </div>
             ))}
 
-            <button className="form-submit" type="submit" disabled={loading}>
-              {loading
+            <button className="form-submit" type="submit" disabled={submitting}>
+              {submitting
                 ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem' }}>
                     <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite', display: 'inline-block' }} />
                     Creating account...

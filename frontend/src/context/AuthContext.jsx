@@ -144,23 +144,27 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  // ── Sign Out ──────────────────────────────────────────────────────────────
+  // ── Sign Out ────────────────────────────────────────────────────────────
   const signOut = async () => {
-    // Clear React state immediately so UI updates right away
+    // 1. Clear React state immediately so UI updates right away
     setUser(null)
     setProfile(null)
     setAuthError(null)
-    // Purge any lingering localStorage keys
+
+    // 2. Purge ALL supabase-related auth keys from localStorage
+    //    Supabase v2 uses keys like 'sb-<ref>-auth-token' as well as custom storageKey
     try {
       Object.keys(localStorage)
-        .filter(k => k.startsWith('nv-auth'))
+        .filter(k => k.startsWith('nv-auth') || k.startsWith('sb-'))
         .forEach(k => localStorage.removeItem(k))
     } catch { /* ignore storage errors */ }
-    // Call Supabase signOut — 'local' scope signs out this tab only (faster)
+
+    // 3. Tell Supabase to invalidate the session server-side
     try {
       await supabase.auth.signOut({ scope: 'local' })
     } catch (err) {
-      console.warn('[NV] Supabase sign out error (session already cleared):', err?.message)
+      // Session may already be expired — not an error worth surfacing
+      console.warn('[NV] signOut warning (safe to ignore):', err?.message)
     }
   }
 

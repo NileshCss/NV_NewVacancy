@@ -9,11 +9,11 @@ const ACCEPTED = '.pdf,.doc,.docx,.txt'
 
 // Progress stages with percentage for the progress bar
 const STAGES = [
-  { key: 'read',    label: '📄 Reading resume & fetching jobs...',         pct: 20 },
-  { key: 'parse',   label: '🧠 AI parsing resume structure...',             pct: 45 },
-  { key: 'match',   label: '🤖 Matching against live job listings...',      pct: 70 },
-  { key: 'process', label: '📊 Processing & scoring results...',            pct: 90 },
-  { key: 'done',    label: '✅ Almost done...',                             pct: 99 },
+  { key: 'read',    label: '📄 Reading resume & fetching jobs...',         pct: 15 },
+  { key: 'parse',   label: '🧠 AI parsing resume structure...',             pct: 40 },
+  { key: 'match',   label: '🤖 Matching against live job listings...',      pct: 65 },
+  { key: 'process', label: '📊 Processing & scoring results...',            pct: 85 },
+  { key: 'done',    label: '✅ Almost done...',                             pct: 97 },
 ]
 
 export default function CareerAIPage() {
@@ -70,7 +70,6 @@ export default function CareerAIPage() {
     onFile(e.dataTransfer.files[0])
   }
 
-  /* ── Main analysis ─────────────────────────────────────── */
   const handleAnalyze = async () => {
     if (!file) return
     setLoading(true); setError(''); setResult(null)
@@ -106,7 +105,8 @@ export default function CareerAIPage() {
         userPreferences: prefs,
         onProgress: (msg) => {
           if (msg.includes('Processing')) updateProgress('process')
-          else if (msg.includes('AI')) updateProgress('match')
+          else if (msg.includes('AI'))      updateProgress('match')
+          else if (msg.includes('Parsing')) updateProgress('parse')
         },
       })
 
@@ -117,6 +117,13 @@ export default function CareerAIPage() {
     } finally {
       setLoading(false); setProgress('')
     }
+  }
+
+  const handleCancel = () => {
+    setLoading(false)
+    setProgress('')
+    setPct(0)
+    setError('Analysis cancelled.')
   }
 
   /* ── Render ───────────────────────────────────────────── */
@@ -198,7 +205,7 @@ export default function CareerAIPage() {
           </div>
 
           {/* Optional inputs row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="career-ai-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
             <div>
               <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>
                 🎯 Target Job (optional)
@@ -218,7 +225,7 @@ export default function CareerAIPage() {
           </div>
 
           {/* Category preference */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
+          <div className="career-ai-cats" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
             {[['', 'All Jobs'], ['govt', '🏛️ Government'], ['private', '🏢 Private']].map(([val, label]) => (
               <button key={val} onClick={() => setPrefCat(val)}
                 style={{ padding: '0.5rem 1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', cursor: 'pointer',
@@ -246,11 +253,19 @@ export default function CareerAIPage() {
                   <div style={{ width: 18, height: 18, border: '2.5px solid rgba(99,102,241,0.3)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
                   <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#a5b4fc' }}>{progress}</span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                  {elapsed}s elapsed
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {elapsed}s elapsed
+                  </span>
+                  <button
+                    onClick={handleCancel}
+                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}
+                  >
+                    ✕ Cancel
+                  </button>
+                </div>
               </div>
-              {/* Real progress bar */}
+              {/* Progress bar */}
               <div style={{ height: 6, background: 'rgba(99,102,241,0.12)', borderRadius: 3, overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
@@ -265,6 +280,11 @@ export default function CareerAIPage() {
                 <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{pct}%</span>
                 <span>Done</span>
               </div>
+              {elapsed > 30 && (
+                <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  ⏳ AI is processing a large dataset. This may take up to 45 seconds…
+                </div>
+              )}
             </div>
           )}
 
@@ -295,7 +315,7 @@ export default function CareerAIPage() {
         </div>
 
         {/* ── How it works ── */}
-        <div style={{ maxWidth: 760, margin: '2.5rem auto 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '1rem' }}>
+        <div className="career-ai-steps" style={{ maxWidth: 760, margin: '2.5rem auto 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '1rem' }}>
           {[
             { icon: '📄', step: '1', title: 'Upload Resume', desc: 'PDF, DOCX, or TXT supported' },
             { icon: '🧠', step: '2', title: 'AI Parses', desc: 'Extracts skills, experience & keywords' },

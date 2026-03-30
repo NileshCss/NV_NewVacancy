@@ -20,11 +20,11 @@ export default function AIResultsDashboard({ result, onReset }) {
   const topPicks = recommended_jobs?.top_picks || []
 
   return (
-    <div style={{ padding: '2rem 1.25rem', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(1rem, 4vw, 2rem) clamp(.75rem, 3vw, 1.25rem)', maxWidth: 1200, margin: '0 auto' }}>
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontFamily: 'Sora, sans-serif', fontSize: '2rem', fontWeight: 900, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+          <h1 style={{ fontFamily: 'Sora, sans-serif', fontSize: 'clamp(1.4rem, 4vw, 2rem)', fontWeight: 900, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
             AI Analysis Complete ✨
           </h1>
           <p style={{ color: 'var(--text-muted)' }}>
@@ -37,7 +37,7 @@ export default function AIResultsDashboard({ result, onReset }) {
       </div>
 
       {/* ── Summary Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Overall ATS Score</div>
           <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#6366f1', fontFamily: 'Sora, sans-serif', lineHeight: 1 }}>
@@ -68,22 +68,22 @@ export default function AIResultsDashboard({ result, onReset }) {
       </div>
 
       {/* ── Tabs ── */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '2rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '2rem', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         {[
-          { id: 'summary', name: 'Overview & Insights' },
-          { id: 'matches', name: `Job Matches (${safeJobMatches.length})` },
-          { id: 'ats', name: 'ATS Analysis' },
-          { id: 'improve', name: 'Improvement Plan' }
+          { id: 'summary', name: 'Overview' },
+          { id: 'matches', name: `Matches (${safeJobMatches.length})` },
+          { id: 'ats', name: 'ATS Score' },
+          { id: 'improve', name: 'Action Plan' }
         ].map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             style={{
-              padding: '0.8rem 1.25rem', fontSize: '0.9rem', fontWeight: 600,
-              background: 'transparent', border: 'none',
+              padding: '0.65rem 1rem', fontSize: 'clamp(0.78rem, 2vw, 0.9rem)', fontWeight: 600,
+              background: 'transparent', border: 'none', flexShrink: 0,
               color: tab === t.id ? '#6366f1' : 'var(--text-secondary)',
               borderBottom: `2px solid ${tab === t.id ? '#6366f1' : 'transparent'}`,
-              marginBottom: '-1px', cursor: 'pointer', transition: 'all 0.2s',
+              marginBottom: '-1px', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
             }}
           >
             {t.name}
@@ -96,7 +96,7 @@ export default function AIResultsDashboard({ result, onReset }) {
         
         {/* OVERVIEW TAB */}
         {tab === 'summary' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
             
             {/* AI Summary */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem' }}>
@@ -214,7 +214,7 @@ export default function AIResultsDashboard({ result, onReset }) {
             )}
 
             <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>All Job Matches ({safeJobMatches.length})</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
               {safeJobMatches.map((job, idx) => (
                 <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
@@ -238,7 +238,7 @@ export default function AIResultsDashboard({ result, onReset }) {
 
         {/* ATS ANALYSIS TAB */}
         {tab === 'ats' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <h3 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>ATS Breakdown</h3>
               
@@ -350,7 +350,7 @@ export default function AIResultsDashboard({ result, onReset }) {
                   <div style={{ padding: '0.5rem 1rem', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: 8, fontSize: '0.9rem', color: '#fff', fontWeight: 600 }}>{suggestions.career_path.next_level}</div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
                   <div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Skills to Add</div>
                     <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>

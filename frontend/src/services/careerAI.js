@@ -1,20 +1,169 @@
-import OpenAI from 'openai'
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 // ─────────────────────────────────────────────────────────────────
-// OpenAI Client (uses VITE_OPENAI_API_KEY from .env)
+// Helper: Retry with exponential backoff
 // ─────────────────────────────────────────────────────────────────
-const client = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-  dangerouslyAllowBrowser: true,
-})
-
-if (!import.meta.env.VITE_OPENAI_API_KEY) {
-  console.warn('[NV-AI] VITE_OPENAI_API_KEY is not set. AI analysis will fail.')
+async function retryWithBackoff(fn, maxRetries = 3, initialDelayMs = 2000) {
+  let lastError
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      
+      // Only retry on rate limit errors
+      if (err.message?.includes('429') || err.message?.includes('rate')) {
+        if (attempt < maxRetries - 1) {
+          const delayMs = initialDelayMs * Math.pow(2, attempt)
+          console.warn(`[Retry] Attempt ${attempt + 1}/${maxRetries} - Waiting ${delayMs}ms before retry...`)
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+          continue
+        }
+      }
+      
+      throw err
+    }
+  }
+  
+  throw lastError
 }
 
 // ─────────────────────────────────────────────────────────────────
-// PDF Text Extraction — uses local pdfjs worker (no CDN needed)
+// AI Chat — Using Google Gemini API (browser-compatible)
+// ─────────────────────────────────────────────────────────────────
+
+/** Call Google Gemini API directly from browser */
+async function openAIChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+
+  if (!apiKey) {
+    throw new Error(
+      '❌ Google Gemini API key not found.\n\n' +
+      'Solution:\n' +
+      '1. Open your .env file in the frontend folder\n' +
+      '2. Add or update: VITE_GEMINI_API_KEY=your-key\n' +
+      '3. Get your key from: https://aistudio.google.com/app/apikeys\n' +
+      '4. Restart the dev server (npm run dev)'
+    )
+  }
+
+  // Use retry logic to handle rate limits
+  return retryWithBackoff(async () => {
+    // Convert messages format for Gemini API
+    let geminiMessages = []
+    let systemInstruction = ''
+    
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        systemInstruction = msg.content
+      } else {
+        geminiMessages.push({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        })
+      }
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: {
+              text: systemInstruction || 'You are a helpful assistant that responds in JSON format.'
+            }
+          },
+          contents: geminiMessages,
+          generationConfig: {
+            temperature,
+            maxOutputTokens: max_tokens,
+            responseMimeType: 'application/json',
+          },
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      const errorMsg = errorData?.error?.message || `HTTP ${response.status}`
+      
+      console.error('[openAIChat] Gemini API Error:', errorData)
+      
+      if (response.status === 401 || errorMsg.includes('API key')) {
+        throw new Error(
+          '❌ Invalid Google Gemini API key.\n\n' +
+          'Solution:\n' +
+          '1. Go to https://aistudio.google.com/app/apikeys\n' +
+          '2. Create a new API key or use an existing one\n' +
+          '3. Update VITE_GEMINI_API_KEY in your .env file\n' +
+          '4. Restart the dev server'
+        )
+      }
+      
+      if (response.status === 429 || errorMsg.includes('rate')) {
+        throw new Error('429_RATE_LIMIT: API rate limit exceeded. Retrying...')
+      }
+      
+      if (errorMsg.includes('quota')) {
+        throw new Error(
+          '💳 API quota exceeded.\n\n' +
+          'Solution: Check your Google Cloud billing at:\n' +
+          'https://console.cloud.google.com/billing'
+        )
+      }
+      
+      throw new Error(`Gemini API Error: ${errorMsg}`)
+    }
+
+    const data = await response.json()
+    
+    if (data?.error) {
+      throw new Error(`Gemini API Error: ${data.error.message}`)
+    }
+
+    // Extract the response text from Gemini response format
+    const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!responseText) {
+      throw new Error('Empty response from Gemini API')
+    }
+
+    try {
+      return JSON.parse(responseText)
+    } catch {
+      // If response isn't valid JSON, return it as-is wrapped in a structure
+      return { raw_response: responseText }
+    }
+  }, /* maxRetries */ 5, /* initialDelayMs */ 2000).catch(err => {
+    console.error('[openAIChat] Final Error:', err)
+    
+    if (err.message?.includes('Failed to fetch')) {
+      throw new Error(
+        '❌ Network error - cannot reach Gemini API.\n\n' +
+        'Check your internet connection and try again.'
+      )
+    }
+    
+    if (err.message?.includes('429') || err.message?.includes('rate')) {
+      throw new Error(
+        '⏸️ API rate limit exceeded after retries.\n\n' +
+        'The Gemini free tier has strict rate limits.\n' +
+        'Wait a few minutes and try again, or upgrade to a paid plan:\n' +
+        'https://aistudio.google.com/'
+      )
+    }
+    
+    throw err
+  })
+}
+
+
+// ─────────────────────────────────────────────────────────────────
+// PDF Text Extraction
 // ─────────────────────────────────────────────────────────────────
 export async function extractTextFromPDF(file) {
   return new Promise((resolve, reject) => {
@@ -22,7 +171,7 @@ export async function extractTextFromPDF(file) {
     reader.onload = async (e) => {
       try {
         const pdfjsLib = await import('pdfjs-dist')
-        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
         const typedArray = new Uint8Array(e.target.result)
         const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise
@@ -33,7 +182,6 @@ export async function extractTextFromPDF(file) {
           const content = await page.getTextContent()
           fullText += content.items.map(item => item.str).join(' ') + '\n'
         }
-
         resolve(fullText.trim())
       } catch (err) {
         reject(new Error(`PDF parsing failed: ${err.message}`))
@@ -65,17 +213,17 @@ export async function extractTextFromDOCX(file) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Unified text extractor — auto-detects format
+// Unified text extractor
 // ─────────────────────────────────────────────────────────────────
 export async function extractResumeText(file) {
   const name = file.name.toLowerCase()
-  if (name.endsWith('.pdf'))  return extractTextFromPDF(file)
+  if (name.endsWith('.pdf'))                      return extractTextFromPDF(file)
   if (name.endsWith('.docx') || name.endsWith('.doc')) return extractTextFromDOCX(file)
   if (name.endsWith('.txt')) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target.result)
-      reader.onerror = () => reject(new Error('File reading failed'))
+      reader.onload  = (e) => resolve(e.target.result)
+      reader.onerror = ()  => reject(new Error('File reading failed'))
       reader.readAsText(file)
     })
   }
@@ -83,7 +231,17 @@ export async function extractResumeText(file) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// NV-AI CAREER INTELLIGENCE — Main Analysis Engine (OpenAI GPT-4o-mini)
+// Helper: race promise against timeout
+// ─────────────────────────────────────────────────────────────────
+function withTimeout(promise, ms, errorMsg) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(errorMsg)), ms)
+  )
+  return Promise.race([promise, timeout])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NV-AI CAREER INTELLIGENCE — Main Analysis Engine
 // ─────────────────────────────────────────────────────────────────
 export async function analyzeResumeWithAI({
   resumeText,
@@ -94,44 +252,41 @@ export async function analyzeResumeWithAI({
 }) {
   onProgress('🧠 Parsing your resume structure...')
 
-  // Slim down jobs payload — only include fields AI needs
-  const jobsSlim = jobs.slice(0, 30).map(j => ({
+  // ── Slim payload: top 20 jobs, essential fields only ──────────
+  const jobsSlim = jobs.slice(0, 20).map(j => ({
     id:           j.id,
     title:        j.title,
-    organization: j.organization,
-    category:     j.category,
-    location:     j.location || 'All India',
-    salary_range: j.salary_range || null,
-    tags:         j.tags || [],
+    org:          j.organization,
+    cat:          j.category,
+    loc:          j.location || 'All India',
+    salary:       j.salary_range || null,
+    tags:         (j.tags || []).slice(0, 5),
     last_date:    j.last_date || null,
     apply_url:    j.apply_url,
   }))
 
   const today = new Date().toISOString().split('T')[0]
 
-  const systemPrompt = `You are NV-AI, an advanced career intelligence assistant for New_vacancy — India's leading job portal.
-You combine: senior HR recruiter expertise, ATS scoring engine (like Workday/Greenhouse), professional Indian market career coach, and technical skills assessor.
+  // ── Trimmed resume (max 4000 chars to stay within token budget) ─
+  const resumeTrimmed = resumeText.slice(0, 4000)
 
-CRITICAL RULES:
-- Return ONLY valid JSON, no markdown, no backticks, no text outside JSON
-- All scores must be numbers, arrays must be arrays (never null)
-- Match scores capped at 100, minimum 0
-- Sort job_matches by match_score descending
-- Never fabricate data not in the resume
-- Today is ${today}`
+  const systemPrompt =
+    `You are NV-AI, an expert career coach and ATS analyzer for India's job market.
+Today is ${today}. Return ONLY valid JSON with no markdown, no backticks, no extra text.`
 
-  const userMessage = `Analyze this resume and match against the jobs. Return the exact JSON structure below.
+  const userMessage =
+    `Analyze this resume against the job list below and return EXACTLY this JSON structure:
 
 RESUME:
-${resumeText.slice(0, 5500)}
+${resumeTrimmed}
 
 JOBS (${jobsSlim.length} listings):
 ${JSON.stringify(jobsSlim)}
 
-TARGET JOB: ${targetJob ? JSON.stringify(targetJob) : 'None'}
+TARGET JOB: ${targetJob ? JSON.stringify({id: targetJob.id, title: targetJob.title}) : 'None'}
 PREFERENCES: ${userPreferences ? JSON.stringify(userPreferences) : 'None'}
 
-Return this exact JSON (fill all fields with real data):
+Return this JSON (all scores are 0-100 integers, arrays are never null):
 {
   "summary_card": {
     "candidate_name": "",
@@ -158,8 +313,8 @@ Return this exact JSON (fill all fields with real data):
   "job_matches": [
     {
       "job_id": "", "job_title": "", "organization": "", "category": "",
-      "location": "", "salary_range": null, "apply_url": "",
-      "last_date": null, "match_score": 0,
+      "location": "", "salary_range": null, "apply_url": "", "last_date": null,
+      "match_score": 0,
       "score_breakdown": { "skills": 0, "experience": 0, "keywords": 0, "education": 0 },
       "matched_skills": [], "missing_skills": [],
       "match_strength": "weak", "recommendation_reason": "", "application_tip": ""
@@ -222,22 +377,24 @@ Return this exact JSON (fill all fields with real data):
 
   onProgress('🤖 AI analyzing resume & matching jobs...')
 
+  // ── Call OpenAI via fetch with 45-second timeout ──────────────
   let response
   try {
-    response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userMessage },
-      ],
-      temperature: 0.15,
-      max_tokens: 4000,
-      response_format: { type: 'json_object' }, // Forces valid JSON, no markdown wrapping
-    })
+    response = await withTimeout(
+      openAIChat({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userMessage  },
+        ],
+        max_tokens:  3500,
+        temperature: 0.15,
+      }),
+      45_000,
+      'AI request timed out after 45 seconds. Please try again.'
+    )
   } catch (err) {
-    // Surface a clear API error to the user
-    const msg = err?.error?.message || err?.message || 'OpenAI API error'
-    throw new Error(`AI request failed: ${msg}`)
+    // openAIChat already formats 401/429 errors — just re-throw
+    throw new Error(err.message || 'AI analysis failed. Please try again.')
   }
 
   onProgress('📊 Processing results...')
@@ -248,7 +405,6 @@ Return this exact JSON (fill all fields with real data):
   try {
     return JSON.parse(raw)
   } catch {
-    // Fallback: try to extract JSON from response
     const m = raw.match(/\{[\s\S]*\}/)
     if (m) {
       try { return JSON.parse(m[0]) } catch { /* fall through */ }
