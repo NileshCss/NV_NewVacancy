@@ -13,6 +13,7 @@ import SavedJobsPage from './pages/SavedJobsPage'
 import AdminPanel from './pages/AdminPanel'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
+import CareerAIPage from './pages/CareerAIPage'
 
 export default function App() {
   const { page, navigate } = useRouter()
@@ -45,6 +46,7 @@ export default function App() {
       case 'login':          return <LoginPage />
       case 'signup':         return <SignupPage />
       case 'saved-jobs':     return <SavedJobsPage />
+      case 'career-ai':      return <CareerAIPage />
       case 'admin':          return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback':  return <AuthCallbackPage />
       default:               return <HomePage />

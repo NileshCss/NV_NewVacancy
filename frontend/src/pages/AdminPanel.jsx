@@ -10,6 +10,7 @@ import {
   fetchUsers, updateRole,
 } from '../services/api'
 import { timeAgo } from '../utils/helpers'
+import AIAssistantPanel from './admin/AIAssistantPanel'
 
 // ── Default form states ────────────────────────────────────────
 const JOB_DEFAULTS  = { title: '', organization: '', category: 'govt', location: 'All India', apply_url: '', salary_range: '', vacancies: '', last_date: '' }
@@ -170,6 +171,7 @@ export default function AdminPanel() {
     { id: 'news',      label: '📰 News' },
     { id: 'affiliates',label: '🎁 Affiliates' },
     { id: 'users',     label: '👥 Users' },
+    { id: 'ai',        label: '🤖 AI Assistant' },
   ]
 
   const STATS = [
@@ -354,6 +356,16 @@ export default function AdminPanel() {
                 </tbody>
               </table>
             </div>
+          </>
+        )}
+
+        {/* AI ASSISTANT */}
+        {section === 'ai' && (
+          <>
+            <div className="admin-header">
+              <div className="admin-title" style={{ color: 'var(--text-primary)' }}>🤖 AI Assistant</div>
+            </div>
+            <AIAssistantPanel />
           </>
         )}
       </div>

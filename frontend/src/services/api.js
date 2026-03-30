@@ -20,6 +20,21 @@ export const fetchJobs = async (category = null) => {
   return data ?? []
 }
 
+// Lightweight fetch for AI analysis — only needed fields, max 50 jobs
+export const fetchJobsForAI = async (category = null) => {
+  let query = supabase
+    .from('jobs')
+    .select('id, title, organization, category, location, salary_range, tags, last_date, apply_url, qualification, department')
+    .eq('is_active', true)
+    .order('posted_at', { ascending: false })
+    .limit(50)
+  if (category) query = query.eq('category', category)
+  const { data, error } = await query
+  if (error) throw dbError(error)
+  return data ?? []
+}
+
+
 export const addJob = async (job) => {
   // Only send columns that exist in the schema
   const payload = {

@@ -28,7 +28,8 @@ export default function Navbar() {
     { id: 'govt-jobs',    label: 'Govt Jobs',    badge: 'HOT' },
     { id: 'private-jobs', label: 'Private Jobs', badge: null  },
     { id: 'news',         label: 'News',         badge: null  },
-    { id: 'affiliates',   label: '🎁 Offers',    badge: 'NEW' },
+    { id: 'affiliates',   label: '🎁 Offers',    badge: null  },
+    { id: 'career-ai',    label: '🤖 A.I',       badge: 'NEW' },
   ]
 
   const handleLogout = async () => {
