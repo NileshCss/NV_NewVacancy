@@ -135,6 +135,8 @@ export default function SignupPage() {
           password: 'Password is too weak. Use 8+ chars with letters and numbers.',
         }))
         toast('Password does not meet security requirements.', 'error')
+      } else if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('over_email_send_rate_limit')) {
+        toast('Too many requests. Please wait a few minutes before trying again.', 'error')
       } else {
         toast(message || 'Signup failed. Please try again.', 'error')
       }
@@ -170,7 +172,12 @@ export default function SignupPage() {
       await resendVerification(emailToResend)
       toast('Verification email sent. Please check your inbox.', 'success')
     } catch (error) {
-      toast(error?.message || 'Failed to resend verification email.', 'error')
+      const message = error?.message || 'Failed to resend verification email.'
+      if (message.toLowerCase().includes('rate limit') || message.toLowerCase().includes('too many requests')) {
+         toast('Please wait a minute before requesting another code.', 'error')
+      } else {
+         toast(message, 'error')
+      }
     } finally {
       setResending(false)
     }

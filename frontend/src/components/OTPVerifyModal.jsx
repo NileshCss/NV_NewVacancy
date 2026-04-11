@@ -146,13 +146,15 @@ export default function OTPVerifyModal({
     }
   }
 
-  // ── Resend OTP ───────────────────────────────────────
   const handleResend = async () => {
     if (!canResend) return
     try {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
       })
       if (error) throw error
 
@@ -163,7 +165,11 @@ export default function OTPVerifyModal({
       inputRefs.current[0]?.focus()
 
     } catch (err) {
-      setError('Failed to resend OTP. Try again later.')
+      if (err.message?.toLowerCase().includes('rate limit') || err.message?.toLowerCase().includes('too many requests')) {
+        setError('Too many requests. Please wait a minute before resending.')
+      } else {
+        setError(err.message || 'Failed to resend OTP. Try again later.')
+      }
     }
   }
 
