@@ -6,6 +6,7 @@ import JobCard from '../components/JobCard'
 import NewsCard from '../components/NewsCard'
 import AffiliateSidebar from '../components/AffiliateSidebar'
 import SkeletonCard from '../components/SkeletonCard'
+import LiveTicker from '../components/LiveTicker'
 import { fetchJobs, fetchNews, fetchAffiliates } from '../services/api'
 
 export default function HomePage() {
@@ -35,6 +36,9 @@ export default function HomePage() {
 
   return (
     <div>
+      {/* Live Ticker */}
+      <LiveTicker speed={50} showLabel={false} />
+
       {/* Hero */}
       <section className="hero">
         <div className="container" style={{ textAlign: 'center' }}>

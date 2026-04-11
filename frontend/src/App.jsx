@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useRouter } from './context/RouterContext'
+import { useAuth } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import NewsTicker from './components/NewsTicker'
 import Footer from './components/Footer'
@@ -17,6 +18,9 @@ import CareerAIPage from './pages/CareerAIPage'
 
 export default function App() {
   const { page, navigate } = useRouter()
+  const { initialized, loading } = useAuth()
+
+  console.log('[App] Render - initialized:', initialized, 'loading:', loading, 'page:', page)
 
   // Detect OAuth callback URL on first load.
   // Only redirect to auth/callback when we have a real OAuth code param
@@ -35,6 +39,38 @@ export default function App() {
       navigate('auth/callback')
     }
   }, [navigate])
+
+  // Show loading screen until auth is initialized
+  if (!initialized || loading) {
+    console.log('[App] Showing loading screen')
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: '0.75rem',
+          background: 'var(--bg-base)',
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            border: '3px solid var(--brand)',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <div style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
+          Loading secure session...
+        </div>
+      </div>
+    )
+  }
 
   const renderPage = () => {
     switch (page) {

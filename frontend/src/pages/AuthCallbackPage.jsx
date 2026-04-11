@@ -1,116 +1,110 @@
-import { useEffect, useRef } from 'react'
-import { supabase } from '../services/supabase'
+import { useEffect, useState } from 'react'
+import { supabase }  from '../services/supabase'
 import { useRouter } from '../context/RouterContext'
+import { ADMIN_EMAIL } from '../context/AuthContext'
 
 export default function AuthCallbackPage() {
   const { navigate } = useRouter()
-  const handled = useRef(false)
+  const [msg, setMsg] = useState('Completing sign in...')
 
   useEffect(() => {
-    if (handled.current) return
-    handled.current = true
+    let done = false
 
-    let safetyTimer = null
-
-    const handleCallback = async () => {
+    const handle = async () => {
       try {
-        const urlParams  = new URLSearchParams(window.location.search)
-        const hashString = window.location.hash.replace('#', '')
-        const hashParams = new URLSearchParams(hashString)
+        // Exchange code for session
+        const { data, error } =
+          await supabase.auth.exchangeCodeForSession(
+            window.location.search
+          )
 
-        const code  = urlParams.get('code')
-        const error = urlParams.get('error') || hashParams.get('error')
+        if (done) return
 
         if (error) {
-          console.error('[NV] OAuth error:', error, urlParams.get('error_description'))
-          navigate('login')
+          setMsg('Sign in failed. Redirecting...')
+          setTimeout(() => navigate('login'), 1500)
           return
         }
 
-        // ── PKCE flow: exchange code for session ──────────────────────────
-        if (code) {
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) {
-            console.error('[NV] Code exchange error:', exchangeError.message)
-            navigate('login')
-            return
-          }
-          if (data?.session) {
-            // Clean URL so the code can't be replayed if user refreshes
-            window.history.replaceState({}, document.title, '/')
-            navigate('home')
-            return
-          }
-        }
+        if (data?.session?.user) {
+          const u = data.session.user
 
-        // ── Implicit / magic-link: access_token already in hash ────────────
-        if (hashParams.get('access_token')) {
-          // Supabase SDK auto-processes the hash — just read the session
-          const { data: sessionData } = await supabase.auth.getSession()
-          if (sessionData?.session) {
-            window.history.replaceState({}, document.title, '/')
-            navigate('home')
-            return
-          }
-        }
+          // Fetch profile to check role
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('role, full_name')
+            .eq('id', u.id)
+            .single()
 
-        // ── Fallback: maybe the SDK already set the session ────────────────
-        const { data: fallback } = await supabase.auth.getSession()
-        if (fallback?.session) {
-          navigate('home')
+          const name = prof?.full_name || u.email?.split('@')[0]
+          setMsg(`Welcome, ${name}! 🎉`)
+          done = true
+
+          setTimeout(() => {
+            if (prof?.role === 'admin' ||
+                u.email?.toLowerCase() ===
+                ADMIN_EMAIL.toLowerCase()) {
+              navigate('admin')
+            } else {
+              navigate('home')
+            }
+          }, 800)
+
         } else {
-          console.warn('[NV] No session after callback — going to login')
-          navigate('login')
+          // Try existing session
+          const { data: { session } } =
+            await supabase.auth.getSession()
+
+          if (session) {
+            navigate('home')
+          } else {
+            navigate('login')
+          }
         }
+
       } catch (err) {
-        console.error('[NV] Callback error:', err)
-        navigate('login')
-      } finally {
-        // Cancel the safety timer since we already navigated
-        if (safetyTimer) clearTimeout(safetyTimer)
+        console.error('[Callback]', err)
+        if (!done) {
+          setMsg('Something went wrong...')
+          setTimeout(() => navigate('login'), 1500)
+        }
       }
     }
 
-    // Small delay so Supabase SDK can auto-parse the URL hash first
-    setTimeout(handleCallback, 150)
-
-    // Safety net — only kicks in if handleCallback never resolves (network hang)
-    safetyTimer = setTimeout(() => {
-      console.warn('[NV] Auth callback safety timeout hit')
-      navigate('login')
-    }, 15_000)
-
-    return () => {
-      if (safetyTimer) clearTimeout(safetyTimer)
-    }
-  }, [navigate])
+    handle()
+  }, [])
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg-base)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'column',
-      gap: '1.25rem'
+      minHeight:       '100vh',
+      background:      'var(--bg-base, #0f172a)',
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      flexDirection:   'column',
+      gap:             '1.25rem',
+      fontFamily:      'DM Sans, sans-serif',
     }}>
       <div style={{
-        width: 52,
-        height: 52,
-        border: '3px solid var(--brand)',
-        borderTopColor: 'transparent',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite'
-      }} />
-      <div style={{ textAlign: 'center' }}>
-        <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '.25rem' }}>
-          Signing you in...
-        </p>
-        <p style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>
-          Please wait, this only takes a moment.
-        </p>
-      </div>
+        width:           52,
+        height:          52,
+        border:          '3px solid rgba(249,115,22,0.25)',
+        borderTopColor:  '#f97316',
+        borderRadius:    '50%',
+        animation:       'nv-spin 0.7s linear infinite',
+      }}/>
+      <p style={{
+        color:      'var(--text-secondary, #94a3b8)',
+        fontSize:   '0.9rem',
+        fontWeight: 500,
+      }}>
+        {msg}
+      </p>
+      <style>{`
+        @keyframes nv-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

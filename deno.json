@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-env ./backend/supabase/functions/ai-assistant/index.ts"
+  },
+  "imports": {
+    "https://deno.land/std@0.168.0/": "https://deno.land/std@0.168.0/",
+    "https://esm.sh/": "https://esm.sh/"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "target": "ES2020"
+  }
+}

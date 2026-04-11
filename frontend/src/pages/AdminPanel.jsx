@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
 import { useToast } from '../context/ToastContext'
@@ -7,10 +7,15 @@ import {
   fetchJobs,    addJob,    updateJob,    deleteJob,
   fetchNews,    addNews,   updateNews,   deleteNews,
   fetchAffiliates, addAffiliate, updateAffiliate, deleteAffiliate,
-  fetchUsers, updateRole,
+  fetchUsers, updateRole, blockUser, deleteUser,
 } from '../services/api'
+import { getDashboardStats } from '../services/newsAffiliateService'
 import { timeAgo } from '../utils/helpers'
 import AIAssistantPanel from './admin/AIAssistantPanel'
+import NewsManager from '../components/admin/NewsManager'
+import AffiliatesManager from '../components/admin/AffiliatesManager'
+import AdminAIAssistant from '../components/admin/AdminAIAssistant'
+import LiveUpdatesManager from './admin/LiveUpdatesManager'
 
 // ── Default form states ────────────────────────────────────────
 const JOB_DEFAULTS  = { title: '', organization: '', category: 'govt', location: 'All India', apply_url: '', salary_range: '', vacancies: '', last_date: '', is_featured: false, is_active: true }
@@ -23,10 +28,76 @@ const Spinner = () => (
 )
 
 export default function AdminPanel() {
-  const { isAdmin, profile, loadingAuth } = useAuth()
+  const { isAdmin, profile, loading, user } = useAuth()
   const { navigate } = useRouter()
   const toast        = useToast()
   const queryClient  = useQueryClient()
+
+  // ── Admin guard check ──────────────────────────────────────────
+  // While auth is loading — show skeleton not redirect
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '60vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <div style={{
+          width: 32, height: 32,
+          border: '3px solid rgba(249,115,22,0.2)',
+          borderTopColor: '#f97316',
+          borderRadius: '50%',
+          animation: 'nv-spin 0.6s linear infinite',
+        }}/>
+        <style>{`
+          @keyframes nv-spin { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    )
+  }
+
+  // Not logged in at all
+  if (!user) {
+    return (
+      <div className="empty-state" style={{ marginTop: '5rem' }}>
+        <div className="empty-icon">🔒</div>
+        <div className="empty-title">Sign In Required</div>
+        <div className="empty-text">
+          Please sign in to access the admin panel
+        </div>
+        <button
+          className="btn btn-primary"
+          style={{ marginTop: '1.25rem' }}
+          onClick={() => navigate('login')}
+        >
+          Sign In
+        </button>
+      </div>
+    )
+  }
+
+  // Logged in but not admin
+  if (!isAdmin) {
+    return (
+      <div className="empty-state" style={{ marginTop: '5rem' }}>
+        <div className="empty-icon">🚫</div>
+        <div className="empty-title">Admin Access Required</div>
+        <div className="empty-text">
+          Your account doesn't have admin privileges.
+        </div>
+        <button
+          className="btn btn-primary"
+          style={{ marginTop: '1.25rem' }}
+          onClick={() => navigate('home')}
+        >
+          Go to Home
+        </button>
+      </div>
+    )
+  }
+
+  // ✅ Admin verified — render full admin panel below
 
   // ── Section nav ───────────────────────────────────────────────
   const [section, setSection] = useState('dashboard')
@@ -46,11 +117,28 @@ export default function AdminPanel() {
   const [newsForm, setNewsForm] = useState(NEWS_DEFAULTS)
   const [affForm,  setAffForm]  = useState(AFF_DEFAULTS)
 
+  // ── Dashboard stats ───────────────────────────────────────────
+  const [dashStats, setDashStats] = useState({ totalJobs: 0, totalNews: 0, totalAffiliates: 0, totalUsers: 0 })
+
   // ── Data queries ──────────────────────────────────────────────
   const { data: jobs  = [] } = useQuery({ queryKey: ['admin_jobs'],  queryFn: () => fetchJobs(),  enabled: isAdmin })
   const { data: news  = [] } = useQuery({ queryKey: ['admin_news'],  queryFn: fetchNews,          enabled: isAdmin })
   const { data: affs  = [] } = useQuery({ queryKey: ['admin_affs'],  queryFn: fetchAffiliates,    enabled: isAdmin })
   const { data: users = [] } = useQuery({ queryKey: ['admin_users'], queryFn: fetchUsers,         enabled: isAdmin })
+
+  // Load dashboard stats on mount
+  useEffect(() => {
+    loadDashboardStats()
+  }, [])
+
+  const loadDashboardStats = async () => {
+    try {
+      const stats = await getDashboardStats()
+      setDashStats(stats)
+    } catch (err) {
+      console.error('Failed to load stats:', err.message)
+    }
+  }
 
   // ── Helper: open modal in Add mode ───────────────────────────
   const openAddJob  = () => { setEditJobId(null);  setJobForm(JOB_DEFAULTS);   setShowJobModal(true)  }
@@ -109,6 +197,8 @@ export default function AdminPanel() {
   const delNews = useMutation({ mutationFn: deleteNews,     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_news']  }); toast('News deleted',      'success') }, onError: (e) => toast(e.message, 'error') })
   const delAff  = useMutation({ mutationFn: deleteAffiliate,onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_affs']  }); toast('Affiliate deleted', 'success') }, onError: (e) => toast(e.message, 'error') })
   const roleMut = useMutation({ mutationFn: ({ id, role }) => updateRole(id, role), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast('Role updated', 'success') }, onError: (e) => toast(e.message, 'error') })
+  const blockMut = useMutation({ mutationFn: ({ id, isBlocked }) => blockUser(id, isBlocked), onSuccess: (_, vars) => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast(vars.isBlocked ? 'User blocked 🚫' : 'User unblocked ✅', 'success') }, onError: (e) => toast(e.message, 'error') })
+  const delUserMut = useMutation({ mutationFn: (id) => deleteUser(id), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast('User deleted 🗑️', 'success') }, onError: (e) => toast(e.message, 'error') })
 
   // ── Quick is_active / is_featured toggles ────────────────────
   const toggleJobActive  = (j) => updateJob(j.id, { is_active: !j.is_active  }).then(() => { queryClient.invalidateQueries({ queryKey: ['admin_jobs'] }); toast('Updated', 'success') }).catch(e => toast(e.message, 'error'))
@@ -186,28 +276,7 @@ export default function AdminPanel() {
     })
   }
 
-  // ── Guards ────────────────────────────────────────────────────
-  if (loadingAuth) return (
-    <div className="empty-state" style={{ marginTop: '5rem' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid var(--brand)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-    </div>
-  )
 
-  if (!profile) return (
-    <div className="empty-state" style={{ marginTop: '5rem' }}>
-      <div className="empty-icon">🔒</div>
-      <div className="empty-title" style={{ color: 'var(--text-primary)' }}>Sign In Required</div>
-      <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate('login')}>Sign In</button>
-    </div>
-  )
-
-  if (!isAdmin && profile?.role !== 'admin') return (
-    <div className="empty-state" style={{ marginTop: '5rem' }}>
-      <div className="empty-icon">🔒</div>
-      <div className="empty-title" style={{ color: 'var(--text-primary)' }}>Admin Access Required</div>
-      <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate('home')}>Go Home</button>
-    </div>
-  )
 
   // ── Nav + Stats ───────────────────────────────────────────────
   const NAV = [
@@ -215,14 +284,15 @@ export default function AdminPanel() {
     { id: 'jobs',      label: '💼 Jobs' },
     { id: 'news',      label: '📰 News' },
     { id: 'affiliates',label: '🎁 Affiliates' },
+    { id: 'live-updates', label: '📢 Live Updates' },
     { id: 'users',     label: '👥 Users' },
-    { id: 'ai',        label: '🤖 AI Assistant' },
+    { id: 'ai',        label: '✨ AI Assistant' },
   ]
   const STATS = [
-    { icon: '💼', val: jobs.length,  label: 'Total Jobs' },
-    { icon: '📰', val: news.length,  label: 'News Articles' },
-    { icon: '🎁', val: affs.length,  label: 'Affiliates' },
-    { icon: '👥', val: users.length, label: 'Total Users' },
+    { icon: '💼', val: dashStats.totalJobs,  label: 'Total Jobs' },
+    { icon: '📰', val: dashStats.totalNews,  label: 'News Articles' },
+    { icon: '🎁', val: dashStats.totalAffiliates,  label: 'Affiliates' },
+    { icon: '👥', val: dashStats.totalUsers, label: 'Total Users' },
   ]
 
   // ── Shared sub-components ─────────────────────────────────────
@@ -239,25 +309,80 @@ export default function AdminPanel() {
     </button>
   )
 
-  const Toggle = ({ active, onToggle, size = 'sm' }) => (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={active ? 'Click to deactivate' : 'Click to activate'}
-      style={{
-        width: size === 'sm' ? 36 : 44, height: size === 'sm' ? 20 : 24,
-        borderRadius: 999, border: 'none', cursor: 'pointer', flexShrink: 0,
-        background: active ? 'var(--brand)' : 'var(--white-8)',
-        transition: 'background .2s', position: 'relative',
-      }}
-    >
-      <span style={{
-        position: 'absolute', top: '50%', transform: `translateX(${active ? (size === 'sm' ? 17 : 21) : 2}px) translateY(-50%)`,
-        width: size === 'sm' ? 14 : 18, height: size === 'sm' ? 14 : 18,
-        borderRadius: '50%', background: '#fff', transition: 'transform .2s',
-      }} />
-    </button>
-  )
+  const Toggle = ({ active, onToggle, size = 'sm' }) => {
+    const isSmall = size === 'sm'
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        title={active ? 'Disable' : 'Enable'}
+        aria-pressed={active}
+        style={{
+          width: isSmall ? 44 : 52,
+          height: isSmall ? 24 : 28,
+          borderRadius: 999,
+          border: 'none',
+          cursor: 'pointer',
+          flexShrink: 0,
+          position: 'relative',
+          background: active ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)',
+          boxShadow: active 
+            ? 'inset 0 2px 4px rgba(0,0,0,0.1), 0 4px 12px rgba(34, 197, 94, 0.3)' 
+            : 'inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.08)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: active ? 'flex-end' : 'flex-start',
+        }}
+      >
+        {/* Inner circle/thumb */}
+        <span
+          style={{
+            position: 'absolute',
+            width: isSmall ? 20 : 24,
+            height: isSmall ? 20 : 24,
+            borderRadius: '50%',
+            background: '#fff',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            transform: `translateX(${active ? (isSmall ? 20 : 24) : 2}px)`,
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+        {/* Active indicator icons/text */}
+        {isSmall && (
+          <>
+            <span
+              style={{
+                position: 'absolute',
+                left: 4,
+                fontSize: '10px',
+                opacity: active ? 0 : 0.6,
+                transition: 'opacity 0.2s',
+                fontWeight: '600',
+                color: '#666',
+              }}
+            >
+              OFF
+            </span>
+            <span
+              style={{
+                position: 'absolute',
+                right: 4,
+                fontSize: '10px',
+                opacity: active ? 1 : 0,
+                transition: 'opacity 0.2s',
+                fontWeight: '600',
+                color: '#fff',
+              }}
+            >
+              ON
+            </span>
+          </>
+        )}
+      </button>
+    )
+  }
 
   // ── Row action buttons ────────────────────────────────────────
   const ActBtns = ({ onEdit, onDel, delPending }) => (
@@ -382,77 +507,12 @@ export default function AdminPanel() {
 
         {/* NEWS */}
         {section === 'news' && (
-          <>
-            <div className="admin-header">
-              <div className="admin-title" style={{ color: 'var(--text-primary)' }}>📰 Manage News</div>
-              <button className="btn btn-primary btn-sm" onClick={openAddNews}>+ Add Article</button>
-            </div>
-            <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
-              <table className="admin-table">
-                <thead><tr>
-                  <th>Title</th><th>Source</th><th>Category</th><th>Published</th>
-                  <th>Featured</th><th>Active</th><th>Actions</th>
-                </tr></thead>
-                <tbody>
-                  {news.map(n => (
-                    <tr key={n.id}>
-                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{n.title}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{n.source_name}</td>
-                      <td><span className="badge badge-blue">{n.category}</span></td>
-                      <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{timeAgo(n.published_at)}</td>
-                      <td><Toggle active={n.is_featured} onToggle={() => toggleNewsFeat(n)} /></td>
-                      <td><Toggle active={n.is_active !== false} onToggle={() => toggleNewsActive(n)} /></td>
-                      <td>
-                        <ActBtns
-                          onEdit={() => openEditNews(n)}
-                          onDel={() => confirmDel('Delete this article?', () => delNews.mutate(n.id))}
-                          delPending={delNews.isPending}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {news.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No articles yet.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <NewsManager />
         )}
 
         {/* AFFILIATES */}
         {section === 'affiliates' && (
-          <>
-            <div className="admin-header">
-              <div className="admin-title" style={{ color: 'var(--text-primary)' }}>🎁 Manage Affiliates</div>
-              <button className="btn btn-primary btn-sm" onClick={openAddAff}>+ Add Affiliate</button>
-            </div>
-            <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
-              <table className="admin-table">
-                <thead><tr>
-                  <th>Name</th><th>Category</th><th>Placement</th><th>Clicks</th>
-                  <th>Active</th><th>Actions</th>
-                </tr></thead>
-                <tbody>
-                  {affs.map(a => (
-                    <tr key={a.id}>
-                      <td style={{ color: 'var(--text-secondary)' }}>{a.emoji} {a.name}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{a.category}</td>
-                      <td><span className="badge badge-blue">{a.placement}</span></td>
-                      <td style={{ color: 'var(--brand)', fontWeight: 700 }}>{(a.clicks || a.click_count || 0).toLocaleString()}</td>
-                      <td><Toggle active={a.is_active !== false} onToggle={() => toggleAffActive(a)} /></td>
-                      <td>
-                        <ActBtns
-                          onEdit={() => openEditAff(a)}
-                          onDel={() => confirmDel('Delete this affiliate?', () => delAff.mutate(a.id))}
-                          delPending={delAff.isPending}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {affs.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No affiliates yet.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <AffiliatesManager />
         )}
 
         {/* USERS */}
@@ -460,40 +520,68 @@ export default function AdminPanel() {
           <>
             <div className="admin-header">
               <div className="admin-title" style={{ color: 'var(--text-primary)' }}>👥 Manage Users</div>
+              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{users.length} total users</div>
             </div>
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
               <table className="admin-table">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
                 <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ color: 'var(--text-secondary)' }}>{u.full_name || 'Anonymous'}</td>
-                      <td style={{ color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || u.id}</td>
-                      <td><span className={`badge ${u.role === 'admin' ? 'badge-blue' : 'badge-green'}`}>{u.role || 'user'}</span></td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                      <td>
-                        {u.role !== 'admin'
-                          ? <button className="action-btn action-edit" onClick={() => confirmDel('Make this user an admin?', () => roleMut.mutate({ id: u.id, role: 'admin' }))}>Make Admin</button>
-                          : <button className="action-btn action-del"  onClick={() => confirmDel('Remove admin rights?', () => roleMut.mutate({ id: u.id, role: 'user' }))}>Remove Admin</button>
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
+                  {users.map(u => {
+                    const isSelf = u.email?.toLowerCase() === user?.email?.toLowerCase()
+                    return (
+                      <tr key={u.id} style={{ opacity: u.is_blocked ? 0.6 : 1 }}>
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          {u.full_name || 'Anonymous'}
+                          {isSelf && <span style={{ fontSize: '.7rem', color: 'var(--brand)', marginLeft: '.4rem', fontWeight: 600 }}>(You)</span>}
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || u.id}</td>
+                        <td><span className={`badge ${u.role === 'admin' ? 'badge-blue' : 'badge-green'}`}>{u.role || 'user'}</span></td>
+                        <td>
+                          {u.is_blocked
+                            ? <span className="badge badge-red" style={{ background: 'rgba(239,68,68,.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,.3)' }}>🚫 Blocked</span>
+                            : <span className="badge badge-green" style={{ background: 'rgba(34,197,94,.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,.3)' }}>✓ Active</span>
+                          }
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Role toggle */}
+                            {u.role !== 'admin'
+                              ? <button className="action-btn action-edit" onClick={() => confirmDel('Make this user an admin?', () => roleMut.mutate({ id: u.id, role: 'admin' }))}>👑 Admin</button>
+                              : !isSelf && <button className="action-btn" style={{ background: 'rgba(249,115,22,.1)', color: '#f97316', border: '1px solid rgba(249,115,22,.25)' }} onClick={() => confirmDel('Remove admin rights?', () => roleMut.mutate({ id: u.id, role: 'user' }))}>Remove Admin</button>
+                            }
+                            {/* Block / Unblock — hide for self */}
+                            {!isSelf && (
+                              u.is_blocked
+                                ? <button className="action-btn action-edit" disabled={blockMut.isPending} onClick={() => confirmDel('Unblock this user?', () => blockMut.mutate({ id: u.id, isBlocked: false }))}>✅ Unblock</button>
+                                : <button className="action-btn" style={{ background: 'rgba(234,179,8,.1)', color: '#eab308', border: '1px solid rgba(234,179,8,.25)' }} disabled={blockMut.isPending} onClick={() => confirmDel('Block this user? They won\'t be able to log in.', () => blockMut.mutate({ id: u.id, isBlocked: true }))}>🚫 Block</button>
+                            )}
+                            {/* Delete — hide for self */}
+                            {!isSelf && (
+                              <button className="action-btn action-del" disabled={delUserMut.isPending} onClick={() => confirmDel('⚠️ Permanently delete this user? This cannot be undone!', () => delUserMut.mutate(u.id))}>
+                                {delUserMut.isPending ? '...' : '🗑️ Delete'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {users.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
                 </tbody>
               </table>
             </div>
           </>
         )}
 
+        {/* LIVE UPDATES */}
+        {section === 'live-updates' && (
+          <LiveUpdatesManager />
+        )}
+
         {/* AI ASSISTANT */}
         {section === 'ai' && (
-          <>
-            <div className="admin-header">
-              <div className="admin-title" style={{ color: 'var(--text-primary)' }}>🤖 AI Assistant</div>
-            </div>
-            <AIAssistantPanel />
-          </>
+          <AdminAIAssistant />
         )}
       </div>
 
@@ -563,125 +651,6 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
-          NEWS MODAL (Add / Edit)
-      ══════════════════════════════════════════ */}
-      {showNewsModal && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ background: 'var(--bg-surface)' }}>
-            <div className="modal-header">
-              <div className="modal-title" style={{ color: 'var(--text-primary)' }}>
-                {editNewsId ? '✏️ Edit Article' : '➕ Add News Article'}
-              </div>
-              <button className="modal-close" onClick={closeNewsModal}>✕</button>
-            </div>
-            <ErrBanner mut={newsMut} />
-            <form onSubmit={saveNews}>
-              <div className="form-group">
-                <label className="form-label">Title *</label>
-                <input className="form-input" style={INPUT} required placeholder="Article headline" value={newsForm.title} onChange={e => setNewsForm(p => ({ ...p, title: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Summary</label>
-                <textarea className="form-input" style={{ ...INPUT, resize: 'vertical' }} rows={3} placeholder="Brief description..." value={newsForm.summary} onChange={e => setNewsForm(p => ({ ...p, summary: e.target.value }))} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Source Name *</label>
-                  <input className="form-input" style={INPUT} required placeholder="e.g. Economic Times" value={newsForm.source_name} onChange={e => setNewsForm(p => ({ ...p, source_name: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Category</label>
-                  <select className="form-input" style={INPUT} value={newsForm.category} onChange={e => setNewsForm(p => ({ ...p, category: e.target.value }))}>
-                    {['govt', 'tech', 'education', 'general'].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Source URL</label>
-                <input className="form-input" style={INPUT} type="url" placeholder="https://example.com/article" value={newsForm.source_url} onChange={e => setNewsForm(p => ({ ...p, source_url: e.target.value }))} />
-              </div>
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '.6rem 0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--text-secondary)', fontSize: '.85rem', cursor: 'pointer' }}>
-                  <Toggle active={newsForm.is_featured} onToggle={() => setNewsForm(p => ({ ...p, is_featured: !p.is_featured }))} />
-                  Featured
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--text-secondary)', fontSize: '.85rem', cursor: 'pointer' }}>
-                  <Toggle active={newsForm.is_active} onToggle={() => setNewsForm(p => ({ ...p, is_active: !p.is_active }))} />
-                  Active
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: '.75rem', marginTop: '1rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={newsMut.isPending}>
-                  {newsMut.isPending ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem' }}><Spinner /> Saving...</span>
-                    : editNewsId ? 'Update Article' : 'Save Article'}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={closeNewsModal}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════
-          AFFILIATE MODAL (Add / Edit)
-      ══════════════════════════════════════════ */}
-      {showAffModal && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ background: 'var(--bg-surface)' }}>
-            <div className="modal-header">
-              <div className="modal-title" style={{ color: 'var(--text-primary)' }}>
-                {editAffId ? '✏️ Edit Affiliate' : '➕ Add Affiliate'}
-              </div>
-              <button className="modal-close" onClick={closeAffModal}>✕</button>
-            </div>
-            <ErrBanner mut={affMut} />
-            <form onSubmit={saveAff}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="form-label">Name *</label>
-                  <input className="form-input" style={INPUT} required placeholder="e.g. Testbook" value={affForm.name} onChange={e => setAffForm(p => ({ ...p, name: e.target.value }))} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="form-label">Description</label>
-                  <input className="form-input" style={INPUT} placeholder="Short description" value={affForm.description} onChange={e => setAffForm(p => ({ ...p, description: e.target.value }))} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="form-label">Redirect URL *</label>
-                  <input className="form-input" style={INPUT} type="url" required placeholder="https://affiliate.example.com" value={affForm.redirect_url} onChange={e => setAffForm(p => ({ ...p, redirect_url: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Category</label>
-                  <select className="form-input" style={INPUT} value={affForm.category} onChange={e => setAffForm(p => ({ ...p, category: e.target.value }))}>
-                    {['exam-prep', 'courses', 'books', 'tools', 'general'].map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Placement</label>
-                  <select className="form-input" style={INPUT} value={affForm.placement} onChange={e => setAffForm(p => ({ ...p, placement: e.target.value }))}>
-                    {['hero', 'sidebar', 'inline', 'footer'].map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Emoji Icon</label>
-                  <input className="form-input" style={INPUT} placeholder="📚" value={affForm.emoji} onChange={e => setAffForm(p => ({ ...p, emoji: e.target.value }))} />
-                </div>
-                <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem 0' }}>
-                  <Toggle active={affForm.is_active} onToggle={() => setAffForm(p => ({ ...p, is_active: !p.is_active }))} />
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>Active</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '.75rem', marginTop: '1rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={affMut.isPending}>
-                  {affMut.isPending ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem' }}><Spinner /> Saving...</span>
-                    : editAffId ? 'Update Affiliate' : 'Save Affiliate'}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={closeAffModal}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   )

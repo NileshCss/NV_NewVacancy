@@ -1,0 +1,97 @@
+/* ============================================================
+   Toggle Switch Animations & Styles
+   Professional on/off switch with smooth transitions
+   ============================================================ */
+
+/* Base toggle switch styles */
+.toggle-switch {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+/* Focus state for accessibility */
+.toggle-switch:focus {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+/* Hover effect */
+.toggle-switch:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Active pressed state */
+.toggle-switch:active {
+  filter: brightness(0.95);
+}
+
+/* Disabled state */
+.toggle-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: none;
+}
+
+/* Thumb animation */
+.toggle-thumb {
+  will-change: transform;
+  z-index: 2;
+}
+
+.toggle-switch:active .toggle-thumb {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Label animations */
+.toggle-label-on,
+.toggle-label-off {
+  will-change: opacity;
+}
+
+/* ============================================================
+   Responsive adjustments
+   ============================================================ */
+
+@media (max-width: 640px) {
+  /* Larger touch targets on mobile */
+  .toggle-switch {
+    min-width: 48px;
+    min-height: 28px;
+  }
+}
+
+/* ============================================================
+   Dark mode support (if using dark mode)
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .toggle-switch:focus {
+    outline-color: var(--accent, #60a5fa);
+  }
+}
+
+/* ============================================================
+   Reduced motion support (accessibility)
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-switch,
+  .toggle-thumb,
+  .toggle-label-on,
+  .toggle-label-off {
+    transition: none !important;
+  }
+}
+
+/* ============================================================
+   Print styles (hide toggle controls when printing)
+   ============================================================ */
+
+@media print {
+  .toggle-switch {
+    display: none;
+  }
+}

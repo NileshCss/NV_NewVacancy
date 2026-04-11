@@ -22,6 +22,25 @@ class ErrorBoundary extends React.Component {
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
             We're sorry for the inconvenience, a critical error occurred.
           </p>
+          {this.state.error && (
+            <div style={{
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: '8px',
+              padding: '1rem',
+              textAlign: 'left',
+              fontSize: '0.85rem',
+              color: 'var(--text-secondary)',
+              maxWidth: '500px',
+              margin: '1rem auto',
+              overflowX: 'auto',
+            }}>
+              <strong>Error Details:</strong>
+              <pre style={{ margin: '0.5rem 0 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {this.state.error?.message || String(this.state.error)}
+              </pre>
+            </div>
+          )}
           <button 
             className="btn btn-primary"
             onClick={() => window.location.reload()}

@@ -1,202 +1,328 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useAuth }   from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
-import { useAuth } from '../context/AuthContext'
-import { useToast } from '../context/ToastContext'
-import ThemeToggle from './ThemeToggle'
+import { useToast }  from '../context/ToastContext'
+import ThemeToggle   from './ThemeToggle'
+
+const NAV_LINKS = [
+  { id: 'govt-jobs',    label: 'Govt Jobs',    badge: 'HOT' },
+  { id: 'private-jobs', label: 'Private Jobs', badge: null  },
+  { id: 'news',         label: 'News',         badge: null  },
+  { id: 'affiliates',   label: '🎁 Offers',    badge: 'NEW' },
+  { id: 'ai',           label: '🤖 A.I',        badge: 'NEW' },
+]
 
 export default function Navbar() {
+  const {
+    user,
+    isAdmin,
+    displayName,
+    avatarLetter,
+    signOut,
+  } = useAuth()
+
   const { page, navigate } = useRouter()
-  const { user, profile, signOut, isAdmin } = useAuth()
   const toast = useToast()
+
   const [mobileOpen, setMobileOpen] = useState(false)
   const [dropOpen,   setDropOpen]   = useState(false)
   const dropRef = useRef(null)
 
-  // Close dropdown when clicking outside
+  // ── Close dropdown on outside click ─────────────────
   useEffect(() => {
-    const handler = (e) => {
-      if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false)
+    const onOutside = (e) => {
+      if (dropRef.current && !dropRef.current.contains(e.target)) {
+        setDropOpen(false)
+      }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
   }, [])
 
-  // Close dropdown on page change
-  useEffect(() => { setDropOpen(false) }, [page])
+  // ── Close mobile menu on nav ─────────────────────────
+  const goTo = useCallback((id) => {
+    navigate(id)
+    setMobileOpen(false)
+    setDropOpen(false)
+  }, [navigate])
 
-  const navLinks = [
-    { id: 'govt-jobs',    label: 'Govt Jobs',    badge: 'HOT' },
-    { id: 'private-jobs', label: 'Private Jobs', badge: null  },
-    { id: 'news',         label: 'News',         badge: null  },
-    { id: 'affiliates',   label: '🎁 Offers',    badge: null  },
-    { id: 'career-ai',    label: '🤖 A.I',       badge: 'NEW' },
-  ]
-
-  const handleLogout = async () => {
+  // ── Sign out handler ─────────────────────────────────
+  const handleSignOut = async () => {
+    console.log('[Navbar] Sign out clicked')
     setDropOpen(false)
     setMobileOpen(false)
+    
     try {
+      console.log('[Navbar] Calling signOut...')
       await signOut()
+      console.log('[Navbar] signOut completed')
+      // Small delay to ensure state updates are flushed before navigation
+      await new Promise(resolve => setTimeout(resolve, 50))
+      console.log('[Navbar] Navigating to home...')
+      navigate('home')
+      toast('Signed out successfully', 'success')
     } catch (err) {
-      // signOut() in AuthContext already catches internal errors.
-      console.warn('[NV] Logout catch (state already cleared):', err?.message)
-    } finally {
-      // Always navigate home — even if Supabase threw an error,
-      // the local state is already cleared so the user is effectively logged out.
+      console.error('[Navbar] Sign out error:', err)
       navigate('home')
     }
   }
-
-  const go = (dest) => { navigate(dest); setDropOpen(false); setMobileOpen(false) }
-
-  // True if current user is admin — double-check both context and profile
-  const showAdmin = isAdmin || profile?.role === 'admin'
-
-  // Display name / avatar initial
-  const displayName   = profile?.full_name || user?.email?.split('@')[0] || 'User'
-  const avatarLetter  = displayName[0].toUpperCase()
 
   return (
     <header className="navbar">
       <div className="container">
         <nav className="nav-inner">
 
-          {/* Logo */}
-          <div className="logo" onClick={() => navigate('home')}>
+          {/* ── Logo ─────────────────────────────────── */}
+          <div className="logo" onClick={() => goTo('home')}>
             <div className="logo-box">NV</div>
-            <div className="logo-text"><span>New_</span><span>vacancy</span></div>
+            <div className="logo-text">
+              <span>New_</span>
+              <span>vacancy</span>
+            </div>
           </div>
 
-          {/* Desktop nav links */}
+          {/* ── Desktop Nav Links ─────────────────────── */}
           <div className="nav-links">
-            {navLinks.map(l => (
-              <div key={l.id}
-                className={`nav-link ${page === l.id ? 'active' : ''}`}
-                onClick={() => navigate(l.id)}>
-                {l.label}
-                {l.badge && <span className="nav-badge">{l.badge}</span>}
+            {NAV_LINKS.map(link => (
+              <div
+                key={link.id}
+                className={`nav-link ${
+                  page === link.id ? 'active' : ''
+                }`}
+                onClick={() => goTo(link.id)}
+              >
+                {link.label}
+                {link.badge && (
+                  <span className="nav-badge">{link.badge}</span>
+                )}
               </div>
             ))}
           </div>
 
-          {/* Right side */}
+          {/* ── Right Side ───────────────────────────── */}
           <div className="nav-right">
+
+            {/* Theme Toggle */}
             <ThemeToggle />
 
             {user ? (
-              <div style={{ position: 'relative' }} ref={dropRef}>
-                {/* Avatar trigger */}
-                <div
-                  id="user-menu-trigger"
-                  style={{ display: 'flex', alignItems: 'center', gap: '.35rem', cursor: 'pointer', padding: '.3rem .5rem', borderRadius: '10px', transition: 'background .2s', minWidth: 0, flexShrink: 1, maxWidth: '100%' }}
-                  onClick={() => setDropOpen(!dropOpen)}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--white-8)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              /* ── User Dropdown ───────────────────── */
+              <div ref={dropRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setDropOpen(o => !o)}
+                  style={{
+                    display:     'flex',
+                    alignItems:  'center',
+                    gap:         '0.5rem',
+                    padding:     '0.35rem 0.6rem',
+                    borderRadius:'10px',
+                    background:  'transparent',
+                    border:      'none',
+                    cursor:      'pointer',
+                  }}
                 >
-                  <div className="avatar" style={{ flexShrink: 0 }}>{avatarLetter}</div>
-                  <span className="nav-user-name" style={{ fontSize: '.82rem', color: 'var(--text-secondary)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {displayName}
-                  </span>
-                  {showAdmin && (
-                    <span className="nav-admin-badge" style={{ fontSize: '.6rem', background: 'var(--brand)', color: '#fff', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, letterSpacing: '.03em', flexShrink: 0 }}>
-                      ADMIN
+                  {/* Avatar circle */}
+                  <div
+                    className="avatar"
+                    style={{
+                      background: isAdmin
+                        ? 'linear-gradient(135deg, #f97316, #ea6c0a)'
+                        : 'var(--brand)',
+                      boxShadow: isAdmin
+                        ? '0 0 10px rgba(249,115,22,0.4)'
+                        : 'none',
+                    }}
+                  >
+                    {avatarLetter}
+                  </div>
+
+                  {/* Name + role label */}
+                  <div style={{
+                    display:       'flex',
+                    flexDirection: 'column',
+                    alignItems:    'flex-start',
+                    lineHeight:    1.2,
+                  }}>
+                    <span style={{
+                      fontSize:       '0.82rem',
+                      color:          'var(--text-secondary)',
+                      maxWidth:       '110px',
+                      overflow:       'hidden',
+                      textOverflow:   'ellipsis',
+                      whiteSpace:     'nowrap',
+                      fontWeight:     600,
+                    }}>
+                      {displayName}
                     </span>
-                  )}
-                  <span style={{ color: 'var(--text-muted)', fontSize: '.7rem', transition: 'transform .2s', transform: dropOpen ? 'rotate(180deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                </div>
+                    {isAdmin && (
+                      <span style={{
+                        fontSize:      '0.58rem',
+                        color:         'var(--brand)',
+                        fontWeight:    800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.07em',
+                      }}>
+                        ⚡ Admin
+                      </span>
+                    )}
+                  </div>
 
-                {/* Dropdown */}
+                  <span style={{
+                    color:    'var(--text-muted)',
+                    fontSize: '0.65rem',
+                  }}>
+                    ▾
+                  </span>
+                </button>
+
+                {/* Dropdown menu */}
                 {dropOpen && (
-                  <div className="dropdown" style={{ minWidth: 210 }}>
-
-                    {/* User info header */}
-                    <div style={{ padding: '.6rem 1rem .4rem', borderBottom: '1px solid var(--border)', marginBottom: '.3rem' }}>
-                      <div style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
-                      <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
+                  <div className="dropdown">
+                    {/* Profile header */}
+                    <div style={{
+                      padding:      '0.75rem 1rem 0.6rem',
+                      borderBottom: '1px solid var(--border)',
+                      marginBottom: '0.3rem',
+                    }}>
+                      <div style={{
+                        fontSize:  '0.88rem',
+                        fontWeight: 700,
+                        color:     'var(--text-primary)',
+                      }}>
+                        {displayName}
+                        {isAdmin && (
+                          <span style={{
+                            marginLeft:    '0.4rem',
+                            fontSize:      '0.65rem',
+                            color:         'var(--brand)',
+                            fontWeight:    800,
+                            textTransform: 'uppercase',
+                          }}>
+                            (Admin)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize:     '0.73rem',
+                        color:        'var(--text-muted)',
+                        marginTop:    '0.1rem',
+                        overflow:     'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace:   'nowrap',
+                      }}>
+                        {user.email}
+                      </div>
                     </div>
 
-                    {/* ── ADMIN DASHBOARD (only for admins) ── */}
-                    {showAdmin && (
+                    {/* Saved Jobs */}
+                    <div
+                      className="dropdown-item"
+                      onClick={() => goTo('saved-jobs')}
+                    >
+                      🔖 Saved Jobs
+                    </div>
+
+                    {/* Admin Panel — only for admin */}
+                    {isAdmin && (
                       <div
-                        id="admin-dashboard-link"
-                        className="dropdown-item"
-                        onClick={() => go('admin')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '.6rem',
-                          background: page === 'admin' ? 'rgba(249,115,22,0.1)' : undefined,
-                          color: 'var(--brand)',
-                          fontWeight: 600,
-                        }}
+                        className="dropdown-item admin"
+                        onClick={() => goTo('admin')}
                       >
-                        <span style={{ fontSize: '1rem' }}>⚡</span>
-                        <span>Admin Dashboard</span>
-                        <span style={{ marginLeft: 'auto', fontSize: '.65rem', background: 'var(--brand)', color: '#fff', borderRadius: '4px', padding: '1px 6px', fontWeight: 700 }}>
-                          ADMIN
-                        </span>
+                        ⚡ Admin Panel
                       </div>
                     )}
 
-                    {/* Saved Jobs */}
-                    <div className="dropdown-item" onClick={() => go('saved-jobs')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-                      <span>🔖</span>
-                      <span>Saved Jobs</span>
-                    </div>
-
-                    <div className="dropdown-divider" />
+                    <div className="dropdown-divider"/>
 
                     {/* Sign Out */}
-                    <div className="dropdown-item danger" onClick={handleLogout}
-                      style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-                      <span>↩</span>
-                      <span>Sign Out</span>
+                    <div
+                      className="dropdown-item danger"
+                      onClick={handleSignOut}
+                    >
+                      ↩ Sign Out
                     </div>
                   </div>
                 )}
               </div>
+
             ) : (
+              /* ── Guest buttons ─────────────────────── */
               <>
-                <button className="btn btn-ghost btn-sm"   onClick={() => navigate('login')}>Sign In</button>
-                <button className="btn btn-primary btn-sm" onClick={() => navigate('signup')}>Get Started</button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => goTo('login')}
+                >
+                  Sign In
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => goTo('signup')}
+                >
+                  Get Started
+                </button>
               </>
             )}
 
-            <button className="mobile-menu-btn" onClick={() => setMobileOpen(!mobileOpen)}>
+            {/* Mobile menu toggle */}
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileOpen(o => !o)}
+            >
               {mobileOpen ? '✕' : '☰'}
             </button>
           </div>
         </nav>
 
-        {/* Mobile menu */}
+        {/* ── Mobile Menu ────────────────────────────── */}
         <div className={`mobile-menu ${mobileOpen ? 'open' : ''}`}>
-          {navLinks.map(l => (
-            <div key={l.id}
-              className={`nav-link ${page === l.id ? 'active' : ''}`}
-              onClick={() => go(l.id)}>
-              {l.label}
+          {NAV_LINKS.map(link => (
+            <div
+              key={link.id}
+              className={`nav-link ${
+                page === link.id ? 'active' : ''
+              }`}
+              onClick={() => goTo(link.id)}
+            >
+              {link.label}
             </div>
           ))}
 
-          {user ? (
+          {isAdmin && (
+            <div
+              className="nav-link"
+              style={{ color: 'var(--brand)' }}
+              onClick={() => goTo('admin')}
+            >
+              ⚡ Admin Panel
+            </div>
+          )}
+
+          {!user && (
             <>
-              {showAdmin && (
-                <div className="nav-link"
-                  style={{ color: 'var(--brand)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.5rem' }}
-                  onClick={() => go('admin')}>
-                  ⚡ Admin Dashboard
-                  <span style={{ fontSize: '.6rem', background: 'var(--brand)', color: '#fff', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>ADMIN</span>
-                </div>
-              )}
-              <div className="nav-link" onClick={() => go('saved-jobs')}>🔖 Saved Jobs</div>
-              <div className="nav-link" style={{ color: 'var(--red)' }} onClick={handleLogout}>↩ Sign Out</div>
+              <div
+                className="nav-link"
+                onClick={() => goTo('login')}
+              >
+                Sign In
+              </div>
+              <div
+                className="nav-link"
+                style={{ color: 'var(--brand-l)' }}
+                onClick={() => goTo('signup')}
+              >
+                Get Started
+              </div>
             </>
-          ) : (
-            <>
-              <div className="nav-link" onClick={() => go('login')}>Sign In</div>
-              <div className="nav-link" style={{ color: 'var(--brand-l)' }} onClick={() => go('signup')}>Get Started</div>
-            </>
+          )}
+
+          {user && (
+            <div
+              className="nav-link"
+              style={{ color: 'var(--red)' }}
+              onClick={handleSignOut}
+            >
+              ↩ Sign Out
+            </div>
           )}
 
           <div style={{ padding: '0.75rem 1rem' }}>
