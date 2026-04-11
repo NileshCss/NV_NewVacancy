@@ -137,6 +137,8 @@ export default function SignupPage() {
         toast('Password does not meet security requirements.', 'error')
       } else if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('over_email_send_rate_limit')) {
         toast('Too many requests. Please wait a few minutes before trying again.', 'error')
+      } else if (lower.includes('error sending confirmation email')) {
+        toast('Email provider error. Please check Supabase SMTP or rate limit settings.', 'error')
       } else {
         toast(message || 'Signup failed. Please try again.', 'error')
       }

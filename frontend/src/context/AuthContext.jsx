@@ -229,14 +229,12 @@ export function AuthProvider({ children }) {
   }
 
   const signUp = async ({ email, password, fullName }) => {
-    // Add emailRedirectTo to prevent Supabase URL validation errors
-    // Even if not strictly needed for OTP, it ensures the request doesn't fail
+    // No emailRedirectTo for purely OTP setups to avoid redirect whitelist issues
     const { data, error } = await supabase.auth.signUp({
       email:    email.trim().toLowerCase(),
       password: password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: window.location.origin,
       },
     })
     if (error) throw error
@@ -247,9 +245,6 @@ export function AuthProvider({ children }) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
     })
     if (error) throw error
   }
