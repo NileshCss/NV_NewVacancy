@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { id: 'private-jobs', label: 'Private Jobs', badge: null  },
   { id: 'news',         label: 'News',         badge: null  },
   { id: 'affiliates',   label: '🎁 Offers',    badge: 'NEW' },
-  { id: 'ai',           label: '🤖 A.I',        badge: 'NEW' },
+  { id: 'career-ai',    label: '🤖 A.I',       badge: 'NEW' },
 ]
 
 export default function Navbar() {
