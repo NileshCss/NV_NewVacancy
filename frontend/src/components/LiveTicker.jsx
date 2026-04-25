@@ -1,279 +1,174 @@
 /**
- * LiveTicker.jsx
- * Real-time scrolling ticker for live updates (breaking news style)
- * Features: Auto-scroll, pause on hover, real-time updates, priority styling
- * Last Updated: April 1, 2026
+ * LiveTicker.jsx — Real-time scrolling ticker
+ * Uses pure CSS animation (zero JS re-renders while scrolling)
+ * Pauses on hover, updates on new data.
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchLiveUpdates, subscribeLiveUpdates, getTypeLabel } from '../services/liveUpdateService'
 
+const ICONS = { job: '🧾', exam: '🎓', deadline: '⏰', news: '📰' }
+const getIcon = (type) => ICONS[type] || '📢'
+
 const LiveTicker = ({ speed = 50, showLabel = true }) => {
-  const [updates, setUpdates] = useState([])
+  const [updates, setUpdates]   = useState([])
   const [isPaused, setIsPaused] = useState(false)
-  const [position, setPosition] = useState(0)
-  const tickerRef = useRef(null)
-  const contentRef = useRef(null)
-  const unsubscribeRef = useRef(null)
+  const unsubRef = useRef(null)
 
-  // ============================================================================
-  // QUERIES
-  // ============================================================================
-
-  const { data: initialUpdates = [], isLoading } = useQuery({
+  // ── Initial data fetch + 60s polling ─────────────────────────
+  const { data: initial = [] } = useQuery({
     queryKey: ['live_updates'],
     queryFn: fetchLiveUpdates,
-    refetchInterval: 60000 // Refresh every 60 seconds
+    refetchInterval: 60_000,
   })
 
-  // ============================================================================
-  // EFFECTS
-  // ============================================================================
-
-  // Initialize with fetched updates
   useEffect(() => {
-    if (initialUpdates.length > 0) {
-      setUpdates(initialUpdates)
-    }
-  }, [initialUpdates])
+    if (initial.length > 0) setUpdates(initial)
+  }, [initial])
 
-  // Set up real-time subscriptions
+  // ── Real-time subscription (Supabase realtime) ───────────────
   useEffect(() => {
-    unsubscribeRef.current = subscribeLiveUpdates((payload) => {
-      // Re-fetch updates on any change
+    unsubRef.current = subscribeLiveUpdates(() => {
       fetchLiveUpdates()
         .then(setUpdates)
-        .catch((err) => console.error('Error refetching updates:', err))
+        .catch(() => {}) // silent — will retry on next poll
     })
-
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current()
-      }
-    }
+    return () => unsubRef.current?.()
   }, [])
 
-  // Animation loop
-  useEffect(() => {
-    if (!contentRef.current || updates.length === 0 || isPaused || isLoading) {
-      return
-    }
+  // If nothing to show and label is hidden, render nothing
+  if (!showLabel && updates.length === 0) return null
 
-    const interval = setInterval(() => {
-      setPosition((prev) => {
-        const maxScroll = contentRef.current?.scrollWidth || 0
-        const newPos = prev - speed / 60 // Divide by 60 for smooth animation at 60fps
-        return newPos <= -maxScroll ? 0 : newPos
-      })
-    }, 1000 / 60) // 60fps
+  // Duration: pixels ÷ speed(px/s) = seconds
+  // We duplicate the list so it can loop seamlessly
+  const content = updates.length > 0 ? [...updates, ...updates] : []
+  const hasUpdates = updates.length > 0
 
-    return () => clearInterval(interval)
-  }, [speed, isPaused, updates.length, isLoading])
+  // ~20px per item average; we want full content width to scroll past
+  const durationSec = hasUpdates
+    ? Math.max(15, (updates.length * 200) / speed)
+    : 20
 
-  // ============================================================================
-  // HANDLERS
-  // ============================================================================
-
-  const handleUpdateClick = (link) => {
-    if (link) {
-      window.open(link, '_blank')
-    }
-  }
-
-  // ============================================================================
-  // UTILITIES
-  // ============================================================================
-
-  const getTypeIcon = (type) => {
-    const icons = {
-      job: '🧾',
-      exam: '🎓',
-      deadline: '⏰',
-      news: '📰'
-    }
-    return icons[type] || '📢'
-  }
-
-  const getUrgentStyles = (priority) => {
-    if (priority === 'urgent') {
-      return {
-        backgroundColor: '#dc2626',
-        color: '#fff'
-      }
-    }
-    return {
-      backgroundColor: '#0f172a',
-      color: '#fff'
-    }
-  }
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
-  if (!showLabel && updates.length === 0) {
-    return null
-  }
+  const isUrgent = updates[0]?.priority === 'urgent'
+  const bgColor  = isUrgent ? '#dc2626' : 'var(--bg-surface, #0f172a)'
+  const txtColor = '#fff'
 
   return (
-    <div
-      ref={tickerRef}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      style={{
-        width: '100%',
-        overflow: 'hidden',
-        backgroundColor: isLoading ? '#f3f4f6' : getUrgentStyles(updates[0]?.priority).backgroundColor,
-        borderBottom: '2px solid rgba(0,0,0,0.1)',
-        position: 'relative',
-        cursor: 'pointer'
-      }}
-    >
-      {/* Label Section */}
-      {showLabel && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            padding: '0.75rem 1rem',
-            backgroundColor: getUrgentStyles(updates[0]?.priority).backgroundColor,
-            color: getUrgentStyles(updates[0]?.priority).color,
-            fontWeight: '700',
-            fontSize: '0.9rem',
-            flexShrink: 0
-          }}
-        >
-          <span style={{ fontSize: '1.2rem', animation: 'pulse 2s infinite' }}>
-            {updates[0]?.priority === 'urgent' ? '🔴' : '🟢'}
-          </span>
-          <span>LIVE</span>
-        </div>
-      )}
-
-      {/* Scrolling Content */}
-      {isLoading ? (
-        <div
-          style={{
-            padding: '0.75rem 1rem',
-            fontSize: '0.9rem',
-            color: '#6b7280'
-          }}
-        >
-          Loading updates...
-        </div>
-      ) : updates.length === 0 ? (
-        <div
-          style={{
-            padding: '0.75rem 1rem',
-            fontSize: '0.9rem',
-            color: '#6b7280'
-          }}
-        >
-          No live updates at the moment
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            overflow: 'hidden',
-            padding: '0.75rem 1rem',
-            minHeight: '2.5rem'
-          }}
-        >
-          <div
-            ref={contentRef}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '2rem',
-              whiteSpace: 'nowrap',
-              transform: `translateX(${position}px)`,
-              transition: isPaused ? 'none' : 'transform 0.05s linear'
-            }}
-          >
-            {/* Render updates multiple times for infinite scroll effect */}
-            {[...updates, ...updates].map((update, idx) => (
-              <div
-                key={`${update.id}-${idx}`}
-                onClick={() => handleUpdateClick(update.link)}
-                style={{
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.5rem 1rem',
-                  backgroundColor: getUrgentStyles(update.priority).backgroundColor,
-                  color: getUrgentStyles(update.priority).color,
-                  borderRadius: '0.25rem',
-                  cursor: update.link ? 'pointer' : 'default',
-                  transition: 'all 0.3s ease',
-                  fontSize: '0.9rem',
-                  fontWeight: '500'
-                }}
-                onMouseEnter={(e) => {
-                  if (update.link) {
-                    e.target.style.opacity = '0.8'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.opacity = '1'
-                }}
-                title={`${getTypeLabel(update.type)}: ${update.title}${update.link ? ' (Click to view)' : ''}`}
-              >
-                {/* Icon */}
-                <span style={{ fontSize: '1rem', flexShrink: 0 }}>
-                  {getTypeIcon(update.type)}
-                </span>
-
-                {/* Update Text */}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {update.title}
-                </span>
-
-                {/* Separator */}
-                <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>•</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pause Hint */}
-      {updates.length > 0 && isPaused && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            color: '#fff',
-            padding: '0.5rem 1rem',
-            borderRadius: '0.25rem',
-            fontSize: '0.8rem',
-            fontWeight: '600',
-            pointerEvents: 'none'
-          }}
-        >
-          ⏸ Paused
-        </div>
-      )}
-
-      {/* Pulse Animation */}
+    <>
+      {/* ── Keyframe definition (once, no re-renders) ─────────── */}
       <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
+        @keyframes nv-ticker-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
         }
+        .nv-ticker-track {
+          display: flex;
+          align-items: center;
+          gap: 2rem;
+          white-space: nowrap;
+          will-change: transform;
+        }
+        .nv-ticker-track.running {
+          animation: nv-ticker-scroll ${durationSec}s linear infinite;
+        }
+        .nv-ticker-track.paused {
+          animation-play-state: paused;
+        }
+        .nv-ticker-item:hover { opacity: 0.8; }
       `}</style>
-    </div>
+
+      <div
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        style={{
+          width:        '100%',
+          overflow:     'hidden',
+          background:   bgColor,
+          borderBottom: '2px solid rgba(0,0,0,0.1)',
+          display:      'flex',
+          alignItems:   'center',
+          position:     'relative',
+          minHeight:    '2.25rem',
+        }}
+      >
+        {/* LIVE label */}
+        {showLabel && (
+          <div style={{
+            padding:     '0.5rem 0.9rem',
+            fontWeight:  800,
+            fontSize:    '0.75rem',
+            color:       txtColor,
+            flexShrink:  0,
+            display:     'flex',
+            alignItems:  'center',
+            gap:         '0.4rem',
+            borderRight: '1px solid rgba(255,255,255,0.15)',
+            letterSpacing: '0.06em',
+          }}>
+            <span style={{ animation: 'pulse 2s infinite' }}>
+              {isUrgent ? '🔴' : '🟢'}
+            </span>
+            LIVE
+          </div>
+        )}
+
+        {/* Scrolling content */}
+        {!hasUpdates ? (
+          <div style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)' }}>
+            No live updates at the moment
+          </div>
+        ) : (
+          <div style={{ overflow: 'hidden', flex: 1 }}>
+            <div
+              className={`nv-ticker-track ${isPaused ? 'paused' : 'running'}`}
+            >
+              {content.map((update, idx) => (
+                <div
+                  key={`${update.id}-${idx}`}
+                  className="nv-ticker-item"
+                  onClick={() => update.link && window.open(update.link, '_blank')}
+                  style={{
+                    flexShrink: 0,
+                    display:    'flex',
+                    alignItems: 'center',
+                    gap:        '0.4rem',
+                    color:      update.priority === 'urgent' ? '#fca5a5' : txtColor,
+                    cursor:     update.link ? 'pointer' : 'default',
+                    fontSize:   '0.82rem',
+                    fontWeight: 500,
+                    padding:    '0 0.5rem',
+                    transition: 'opacity 0.2s',
+                  }}
+                  title={`${getTypeLabel(update.type)}: ${update.title}${update.link ? ' (click to view)' : ''}`}
+                >
+                  <span style={{ fontSize: '0.9rem' }}>{getIcon(update.type)}</span>
+                  <span>{update.title}</span>
+                  <span style={{ opacity: 0.4, marginLeft: '0.5rem' }}>•</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Paused indicator */}
+        {hasUpdates && isPaused && (
+          <div style={{
+            position:        'absolute',
+            right:           '0.75rem',
+            background:      'rgba(0,0,0,0.7)',
+            color:           '#fff',
+            padding:         '0.2rem 0.6rem',
+            borderRadius:    4,
+            fontSize:        '0.7rem',
+            fontWeight:      600,
+            pointerEvents:   'none',
+          }}>
+            ⏸ Paused
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

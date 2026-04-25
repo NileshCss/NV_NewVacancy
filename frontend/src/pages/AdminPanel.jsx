@@ -11,7 +11,6 @@ import {
 } from '../services/api'
 import { getDashboardStats } from '../services/newsAffiliateService'
 import { timeAgo } from '../utils/helpers'
-import AIAssistantPanel from './admin/AIAssistantPanel'
 import NewsManager from '../components/admin/NewsManager'
 import AffiliatesManager from '../components/admin/AffiliatesManager'
 import AdminAIAssistant from '../components/admin/AdminAIAssistant'
@@ -32,72 +31,6 @@ export default function AdminPanel() {
   const { navigate } = useRouter()
   const toast        = useToast()
   const queryClient  = useQueryClient()
-
-  // ── Admin guard check ──────────────────────────────────────────
-  // While auth is loading — show skeleton not redirect
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '60vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <div style={{
-          width: 32, height: 32,
-          border: '3px solid rgba(249,115,22,0.2)',
-          borderTopColor: '#f97316',
-          borderRadius: '50%',
-          animation: 'nv-spin 0.6s linear infinite',
-        }}/>
-        <style>{`
-          @keyframes nv-spin { to { transform: rotate(360deg); } }
-        `}</style>
-      </div>
-    )
-  }
-
-  // Not logged in at all
-  if (!user) {
-    return (
-      <div className="empty-state" style={{ marginTop: '5rem' }}>
-        <div className="empty-icon">🔒</div>
-        <div className="empty-title">Sign In Required</div>
-        <div className="empty-text">
-          Please sign in to access the admin panel
-        </div>
-        <button
-          className="btn btn-primary"
-          style={{ marginTop: '1.25rem' }}
-          onClick={() => navigate('login')}
-        >
-          Sign In
-        </button>
-      </div>
-    )
-  }
-
-  // Logged in but not admin
-  if (!isAdmin) {
-    return (
-      <div className="empty-state" style={{ marginTop: '5rem' }}>
-        <div className="empty-icon">🚫</div>
-        <div className="empty-title">Admin Access Required</div>
-        <div className="empty-text">
-          Your account doesn't have admin privileges.
-        </div>
-        <button
-          className="btn btn-primary"
-          style={{ marginTop: '1.25rem' }}
-          onClick={() => navigate('home')}
-        >
-          Go to Home
-        </button>
-      </div>
-    )
-  }
-
-  // ✅ Admin verified — render full admin panel below
 
   // ── Section nav ───────────────────────────────────────────────
   const [section, setSection] = useState('dashboard')
@@ -120,16 +53,11 @@ export default function AdminPanel() {
   // ── Dashboard stats ───────────────────────────────────────────
   const [dashStats, setDashStats] = useState({ totalJobs: 0, totalNews: 0, totalAffiliates: 0, totalUsers: 0 })
 
-  // ── Data queries ──────────────────────────────────────────────
+  // ── Data queries — only run when admin is confirmed ───────────
   const { data: jobs  = [] } = useQuery({ queryKey: ['admin_jobs'],  queryFn: () => fetchJobs(),  enabled: isAdmin })
   const { data: news  = [] } = useQuery({ queryKey: ['admin_news'],  queryFn: fetchNews,          enabled: isAdmin })
   const { data: affs  = [] } = useQuery({ queryKey: ['admin_affs'],  queryFn: fetchAffiliates,    enabled: isAdmin })
   const { data: users = [] } = useQuery({ queryKey: ['admin_users'], queryFn: fetchUsers,         enabled: isAdmin })
-
-  // Load dashboard stats on mount
-  useEffect(() => {
-    loadDashboardStats()
-  }, [])
 
   const loadDashboardStats = async () => {
     try {
@@ -139,6 +67,52 @@ export default function AdminPanel() {
       console.error('Failed to load stats:', err.message)
     }
   }
+
+  // Load dashboard stats on mount (only when admin)
+  useEffect(() => {
+    if (isAdmin) loadDashboardStats()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin])
+
+  // ─────────────────────────────────────────────────────────────
+  // ✅ ALL hooks are above — early returns are SAFE from here
+  // ─────────────────────────────────────────────────────────────
+
+  // While auth is loading — show skeleton
+  if (loading) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 32, height: 32, border: '3px solid rgba(249,115,22,0.2)', borderTopColor: '#f97316', borderRadius: '50%', animation: 'nv-spin 0.6s linear infinite' }}/>
+        <style>{`@keyframes nv-spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  // Not logged in
+  if (!user) {
+    return (
+      <div className="empty-state" style={{ marginTop: '5rem' }}>
+        <div className="empty-icon">🔒</div>
+        <div className="empty-title">Sign In Required</div>
+        <div className="empty-text">Please sign in to access the admin panel</div>
+        <button className="btn btn-primary" style={{ marginTop: '1.25rem' }} onClick={() => navigate('login')}>Sign In</button>
+      </div>
+    )
+  }
+
+  // Logged in but not admin
+  if (!isAdmin) {
+    return (
+      <div className="empty-state" style={{ marginTop: '5rem' }}>
+        <div className="empty-icon">🚫</div>
+        <div className="empty-title">Admin Access Required</div>
+        <div className="empty-text">Your account doesn't have admin privileges.</div>
+        <button className="btn btn-primary" style={{ marginTop: '1.25rem' }} onClick={() => navigate('home')}>Go to Home</button>
+      </div>
+    )
+  }
+
+  // ✅ Admin verified — render full admin panel below
 
   // ── Helper: open modal in Add mode ───────────────────────────
   const openAddJob  = () => { setEditJobId(null);  setJobForm(JOB_DEFAULTS);   setShowJobModal(true)  }

@@ -30,11 +30,20 @@ async function retryWithBackoff(fn, maxRetries = 3, initialDelayMs = 2000) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Track which AI is being used (for UI feedback)
+// ─────────────────────────────────────────────────────────────────
+let activeAI = 'gemini' // Track which AI succeeded
+
+export function getActiveAI() {
+  return activeAI
+}
+
+// ─────────────────────────────────────────────────────────────────
 // AI Chat — Using Google Gemini API (browser-compatible)
 // ─────────────────────────────────────────────────────────────────
 
 /** Call Google Gemini API directly from browser */
-async function openAIChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
+async function geminiChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY
 
   if (!apiKey) {
@@ -105,17 +114,11 @@ async function openAIChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
         )
       }
       
-      if (response.status === 429 || errorMsg.includes('rate')) {
-        throw new Error('429_RATE_LIMIT: API rate limit exceeded. Retrying...')
+      if (response.status === 429 || errorMsg.includes('rate') || errorMsg.includes('quota')) {
+        throw new Error('429_RATE_LIMIT: Gemini rate limit. Will try Grok...')
       }
       
-      if (errorMsg.includes('quota')) {
-        throw new Error(
-          '💳 API quota exceeded.\n\n' +
-          'Solution: Check your Google Cloud billing at:\n' +
-          'https://console.cloud.google.com/billing'
-        )
-      }
+
       
       throw new Error(`Gemini API Error: ${errorMsg}`)
     }
@@ -138,29 +141,165 @@ async function openAIChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
       // If response isn't valid JSON, return it as-is wrapped in a structure
       return { raw_response: responseText }
     }
-  }, /* maxRetries */ 5, /* initialDelayMs */ 2000).catch(err => {
-    console.error('[openAIChat] Final Error:', err)
-    
-    if (err.message?.includes('Failed to fetch')) {
-      throw new Error(
-        '❌ Network error - cannot reach Gemini API.\n\n' +
-        'Check your internet connection and try again.'
-      )
-    }
-    
-    if (err.message?.includes('429') || err.message?.includes('rate')) {
-      throw new Error(
-        '⏸️ API rate limit exceeded after retries.\n\n' +
-        'The Gemini free tier has strict rate limits.\n' +
-        'Wait a few minutes and try again, or upgrade to a paid plan:\n' +
-        'https://aistudio.google.com/'
-      )
-    }
-    
+  }, /* maxRetries */ 2, /* initialDelayMs */ 1000).catch(err => {
+    console.error('[geminiChat] Error:', err.message)
     throw err
   })
 }
 
+// ─────────────────────────────────────────────────────────────────
+// AI Chat — Using Grok API (fallback when Gemini is rate limited)
+// ─────────────────────────────────────────────────────────────────
+
+/** Call Grok API via backend (uses XAI's Grok model) */
+async function grokChat({ messages, max_tokens = 3500, temperature = 0.15 }) {
+  const apiKey = import.meta.env.VITE_GROK_API_KEY
+
+  if (!apiKey) {
+    throw new Error(
+      '❌ Grok API key not configured.\n\n' +
+      'Setup Grok as fallback:\n' +
+      '1. Go to: https://console.together.ai (or your Grok provider)\n' +
+      '2. Create an API key\n' +
+      '3. Add to .env: VITE_GROK_API_KEY=your-key\n' +
+      '4. Restart dev server'
+    )
+  }
+
+  // Convert messages for Grok API (uses OpenAI-compatible format)
+  let grokMessages = []
+  let systemInstructions = 'You are a helpful assistant that responds in JSON format.'
+  
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemInstructions = msg.content
+    } else {
+      grokMessages.push({
+        role: msg.role,
+        content: msg.content
+      })
+    }
+  }
+
+  // Add system instruction as first message if using OpenAI format
+  if (systemInstructions && grokMessages.length > 0 && grokMessages[0].role !== 'system') {
+    grokMessages.unshift({
+      role: 'system',
+      content: systemInstructions
+    })
+  }
+
+  const response = await fetch('https://api.together.xyz/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'mistralai/Mixtral-8x7B-Instruct-v0.1', // Or 'meta-llama/Llama-2-70b-chat-hf' for better performance
+      messages: grokMessages,
+      temperature,
+      max_tokens,
+      top_p: 0.9,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    const errorMsg = errorData?.error?.message || `HTTP ${response.status}`
+    
+    console.error('[grokChat] Grok API Error:', errorData)
+    
+    if (response.status === 401 || errorMsg.includes('API key') || errorMsg.includes('Unauthorized')) {
+      throw new Error('❌ Invalid Grok API key. Check your credentials.')
+    }
+    
+    if (response.status === 429 || errorMsg.includes('rate')) {
+      throw new Error('429_RATE_LIMIT: Grok also rate limited. Please wait a few minutes.')
+    }
+    
+    throw new Error(`Grok API Error: ${errorMsg}`)
+  }
+
+  const data = await response.json()
+  
+  if (data?.error) {
+    throw new Error(`Grok API Error: ${data.error.message}`)
+  }
+
+  const responseText = data?.choices?.[0]?.message?.content
+  if (!responseText) {
+    throw new Error('Empty response from Grok API')
+  }
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    return { raw_response: responseText }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Smart AI Selector — Try Gemini, fallback to Grok
+// ─────────────────────────────────────────────────────────────────
+
+async function smartAIChat({ messages, max_tokens = 3500, temperature = 0.15, onAIChange = null }) {
+  let lastGeminiError = null
+  
+  // ── Try Gemini first ──────────────────────────────────────
+  console.log('[smartAIChat] Attempting Gemini...')
+  try {
+    const result = await geminiChat({ messages, max_tokens, temperature })
+    activeAI = 'gemini'
+    console.log('[smartAIChat] ✅ Gemini succeeded')
+    return result
+  } catch (err) {
+    lastGeminiError = err
+    console.warn('[smartAIChat] Gemini failed:', err.message)
+    
+    // Only switch to Grok if Gemini hit a rate limit
+    if (!err.message?.includes('429_RATE_LIMIT')) {
+      // Other errors (invalid key, network, etc.) - don't fallback
+      throw err
+    }
+  }
+  
+  // ── Gemini hit rate limit, try Grok ─────────────────────
+  console.log('[smartAIChat] Gemini rate limited. Trying Grok...')
+  try {
+    const result = await grokChat({ messages, max_tokens, temperature })
+    activeAI = 'grok'
+    console.log('[smartAIChat] ✅ Grok succeeded')
+    if (onAIChange) onAIChange('grok')
+    return result
+  } catch (err) {
+    console.error('[smartAIChat] Grok also failed:', err.message)
+    
+    // Both AI services failed
+    if (err.message?.includes('429_RATE_LIMIT')) {
+      throw new Error(
+        '⏸️ All AI services are rate limited.\n\n' +
+        'Both Gemini and Grok have hit their rate limits.\n' +
+        'Please wait 10-30 minutes and try again.\n\n' +
+        'Tip: Spread out your analyses over time to avoid limits.'
+      )
+    }
+    
+    if (err.message?.includes('API key not')) {
+      throw new Error(
+        '⚙️ AI configuration incomplete.\n\n' +
+        'You need at least one AI API key configured:\n' +
+        '• Gemini: https://aistudio.google.com/app/apikeys\n' +
+        '• Grok: https://console.together.ai\n\n' +
+        'Add one to your .env file and restart the dev server.'
+      )
+    }
+    
+    throw new Error(`AI analysis failed: ${err.message}`)
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────
 // PDF Text Extraction
@@ -377,29 +516,47 @@ Return this JSON (all scores are 0-100 integers, arrays are never null):
 
   onProgress('🤖 AI analyzing resume & matching jobs...')
 
-  // ── Call OpenAI via fetch with 45-second timeout ──────────────
+  // ── Call Smart AI Selector (Gemini → Grok fallback) ──────────────
   let response
   try {
     response = await withTimeout(
-      openAIChat({
+      smartAIChat({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userMessage  },
         ],
         max_tokens:  3500,
         temperature: 0.15,
+        onAIChange: (aiName) => {
+          console.log(`[analyzeResumeWithAI] Switched to ${aiName}`)
+          onProgress(`🤖 Switched to ${aiName.charAt(0).toUpperCase() + aiName.slice(1)} AI...`)
+        }
       }),
       45_000,
       'AI request timed out after 45 seconds. Please try again.'
     )
   } catch (err) {
-    // openAIChat already formats 401/429 errors — just re-throw
+    // smartAIChat already formats errors — just re-throw
     throw new Error(err.message || 'AI analysis failed. Please try again.')
   }
 
   onProgress('📊 Processing results...')
 
-  const raw = response.choices[0]?.message?.content?.trim()
+  // Handle different response formats (Gemini vs Grok)
+  let raw
+  if (typeof response === 'string') {
+    raw = response.trim()
+  } else if (response.choices?.[0]?.message?.content) {
+    // OpenAI format response
+    raw = response.choices[0].message.content.trim()
+  } else if (response.raw_response) {
+    // Raw text response
+    raw = response.raw_response
+  } else {
+    // Already parsed JSON from AI
+    return response
+  }
+
   if (!raw) throw new Error('AI returned an empty response. Please try again.')
 
   try {

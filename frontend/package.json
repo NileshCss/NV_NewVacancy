@@ -9,14 +9,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@radix-ui/react-progress": "^1.1.8",
     "@supabase/supabase-js": "^2.100.1",
     "@tanstack/react-query": "^5.95.2",
+    "axios": "^1.15.2",
+    "framer-motion": "^12.38.0",
     "mammoth": "^1.12.0",
     "openai": "^6.33.0",
     "pdfjs-dist": "^5.4.624",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^15.0.0",
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

@@ -6,10 +6,11 @@ export default defineConfig({
   base: '/',
   server: {
     port: 5173,
-    open: true,
+    // open: true  ← removed: was opening a new browser tab on every HMR restart
   },
   build: {
     outDir: 'dist',
     sourcemap: false,
-  }
+  },
 })
+

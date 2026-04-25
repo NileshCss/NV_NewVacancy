@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { id: 'private-jobs', label: 'Private Jobs', badge: null  },
   { id: 'news',         label: 'News',         badge: null  },
   { id: 'affiliates',   label: '🎁 Offers',    badge: 'NEW' },
-  { id: 'career-ai',    label: '🤖 A.I',       badge: 'NEW' },
+  { id: 'smartmatch',   label: '🧠 SmartMatch', badge: 'FREE' },
 ]
 
 export default function Navbar() {
@@ -48,17 +48,10 @@ export default function Navbar() {
 
   // ── Sign out handler ─────────────────────────────────
   const handleSignOut = async () => {
-    console.log('[Navbar] Sign out clicked')
     setDropOpen(false)
     setMobileOpen(false)
-    
     try {
-      console.log('[Navbar] Calling signOut...')
       await signOut()
-      console.log('[Navbar] signOut completed')
-      // Small delay to ensure state updates are flushed before navigation
-      await new Promise(resolve => setTimeout(resolve, 50))
-      console.log('[Navbar] Navigating to home...')
       navigate('home')
       toast('Signed out successfully', 'success')
     } catch (err) {

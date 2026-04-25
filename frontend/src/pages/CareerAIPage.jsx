@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
 import { fetchJobsForAI } from '../services/api'
-import { extractResumeText, analyzeResumeWithAI } from '../services/careerAI'
+import { extractResumeText, analyzeResumeWithAI, getActiveAI } from '../services/careerAI'
 import AIResultsDashboard from '../components/career/AIResultsDashboard'
 
 const ACCEPTED = '.pdf,.doc,.docx,.txt'
@@ -26,6 +26,7 @@ export default function CareerAIPage() {
   const [progress,    setProgress]    = useState('')
   const [pct,         setPct]         = useState(0)
   const [elapsed,     setElapsed]     = useState(0)
+  const [activeAI,    setActiveAI]    = useState('')
   const [result,      setResult]      = useState(null)
   const [error,       setError]       = useState('')
   const [targetTitle, setTargetTitle] = useState('')
@@ -46,6 +47,7 @@ export default function CareerAIPage() {
       clearInterval(timerRef.current)
       setElapsed(0)
       setPct(0)
+      setActiveAI('')
     }
     return () => clearInterval(timerRef.current)
   }, [loading])
@@ -104,12 +106,20 @@ export default function CareerAIPage() {
         targetJob,
         userPreferences: prefs,
         onProgress: (msg) => {
+          // Update AI indicator if switching
+          if (msg.includes('Switched to')) {
+            const aiName = msg.includes('Grok') ? 'grok' : 'gemini'
+            setActiveAI(aiName)
+          }
+          // Update progress stages
           if (msg.includes('Processing')) updateProgress('process')
           else if (msg.includes('AI'))      updateProgress('match')
           else if (msg.includes('Parsing')) updateProgress('parse')
         },
       })
 
+      // Set final AI used
+      setActiveAI(getActiveAI())
       updateProgress('done')
       setResult(data)
     } catch (err) {
@@ -252,6 +262,21 @@ export default function CareerAIPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <div style={{ width: 18, height: 18, border: '2.5px solid rgba(99,102,241,0.3)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
                   <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#a5b4fc' }}>{progress}</span>
+                  {activeAI && (
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '0.25rem 0.6rem',
+                      background: activeAI === 'grok' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                      border: `1px solid ${activeAI === 'grok' ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                      borderRadius: 999,
+                      color: activeAI === 'grok' ? '#f59e0b' : '#3b82f6',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}>
+                      {activeAI === 'grok' ? '🔥 Grok' : '✨ Gemini'}
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>

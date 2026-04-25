@@ -1,44 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth }   from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
-import { useToast } from '../context/ToastContext'
+import { useToast }  from '../context/ToastContext'
 import OTPVerifyModal from '../components/OTPVerifyModal'
+import {
+  EMAIL_RE,
+  AuthBanner,
+  AuthDivider,
+  GoogleButton,
+  FormInput,
+  SpinnerBtn,
+} from '../components/AuthShared'
 import { isSupabaseConfigured } from '../services/supabase'
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function mapLoginError(errorMessage = '') {
-  const lower = errorMessage.toLowerCase()
-
-  if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
-    return {
-      field: 'password',
-      toast: 'Wrong email or password.',
-      text: 'Wrong email or password',
-    }
+// ── Map Supabase errors to user-friendly messages ─────────────────────────────
+function mapLoginError(msg = '') {
+  const m = msg.toLowerCase()
+  if (m.includes('invalid login credentials') || m.includes('invalid_credentials')) {
+    return { field: 'password', toast: 'Wrong email or password.', text: 'Wrong email or password' }
   }
-
-  if (lower.includes('email not confirmed') || lower.includes('email not verified')) {
-    return {
-      field: 'email',
-      toast: 'Please verify your email before signing in.',
-      text: 'Email is not verified yet',
-    }
+  if (m.includes('email not confirmed') || m.includes('email not verified')) {
+    return { field: 'email', toast: 'Please verify your email before signing in.', text: 'Email is not verified yet' }
   }
-
-  if (lower.includes('too many requests') || lower.includes('rate limit') || lower.includes('over_request_rate_limit')) {
-    return {
-      field: 'password',
-      toast: 'Too many login attempts. Please wait and try again.',
-      text: 'Too many attempts. Try again in a few minutes',
-    }
+  if (m.includes('too many requests') || m.includes('rate limit') || m.includes('over_request_rate_limit')) {
+    return { field: 'password', toast: 'Too many login attempts. Please wait and try again.', text: 'Too many attempts. Try again in a few minutes' }
   }
-
-  return {
-    field: null,
-    toast: errorMessage || 'Login failed. Please try again.',
-    text: errorMessage || 'Login failed. Please try again.',
-  }
+  return { field: null, toast: msg || 'Login failed. Please try again.', text: msg || 'Login failed.' }
 }
 
 export default function LoginPage() {
@@ -46,85 +33,66 @@ export default function LoginPage() {
   const { navigate } = useRouter()
   const toast = useToast()
 
-  const [form, setForm] = useState({ email: '', password: '' })
-  const [errors, setErrors] = useState({})
+  const [form, setFormState]      = useState({ email: '', password: '' })
+  const [errors, setErrors]       = useState({})
   const [submitting, setSubmitting] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
+
+  // Forgot-password panel state
+  const [forgotEmail, setForgotEmail]         = useState('')
   const [showForgotPanel, setShowForgotPanel] = useState(false)
-  const [sendingReset, setSendingReset] = useState(false)
+  const [sendingReset, setSendingReset]       = useState(false)
+
+  // OTP modal state
   const [showOTPModal, setShowOTPModal] = useState(false)
-  const [otpEmail, setOtpEmail] = useState('')
+  const [otpEmail, setOtpEmail]         = useState('')
 
-  const configured = isSupabaseConfigured()
-
+  const configured      = isSupabaseConfigured()
   const normalizedEmail = useMemo(() => form.email.trim().toLowerCase(), [form.email])
 
+  // Redirect already-logged-in users
   useEffect(() => {
     if (!loading && user) {
-      if (profile?.role === 'admin') {
-        navigate('admin')
-      } else {
-        navigate('home')
-      }
+      navigate(profile?.role === 'admin' ? 'admin' : 'home')
     }
-  }, [loading, navigate, profile?.role, user])
+  }, [loading, user, profile?.role, navigate])
+
+  // ── Field helpers ─────────────────────────────────────────────────────────
+  const setField = (field) => (e) => {
+    setFormState((prev) => ({ ...prev, [field]: e.target.value }))
+    setErrors((prev)    => ({ ...prev, [field]: '' }))
+  }
 
   const validate = () => {
-    const nextErrors = {}
-
-    if (!normalizedEmail) {
-      nextErrors.email = 'Email is required'
-    } else if (!EMAIL_RE.test(normalizedEmail)) {
-      nextErrors.email = 'Enter a valid email address'
-    }
-
-    if (!form.password) {
-      nextErrors.password = 'Password is required'
-    }
-
-    setErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
+    const next = {}
+    if (!normalizedEmail)                  next.email    = 'Email is required'
+    else if (!EMAIL_RE.test(normalizedEmail)) next.email  = 'Enter a valid email address'
+    if (!form.password)                    next.password = 'Password is required'
+    setErrors(next)
+    return Object.keys(next).length === 0
   }
 
-  const setField = (field) => (event) => {
-    const value = event.target.value
-    setForm((previous) => ({ ...previous, [field]: value }))
-    setErrors((previous) => ({ ...previous, [field]: '' }))
-  }
-
-  const handleLogin = async (event) => {
-    event.preventDefault()
-
-    if (!configured) {
-      toast('⚠️ Supabase not configured. Add frontend/.env first.', 'error')
-      return
-    }
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    if (!configured) { toast('⚠️ Supabase not configured. Add frontend/.env first.', 'error'); return }
     if (!validate()) return
-
     setSubmitting(true)
-
     try {
-      await signIn({
-        email: normalizedEmail,
-        password: form.password,
-      })
-
+      await signIn({ email: normalizedEmail, password: form.password })
       toast('Welcome back! 🎉', 'success')
-    } catch (error) {
-      const mapped = mapLoginError(error?.message || '')
-      
-      // Check if email is not confirmed — show OTP modal
-      if (error?.message?.includes('Email not confirmed') || error?.message?.includes('email not verified')) {
+    } catch (err) {
+      const isEmailUnverified =
+        err?.message?.toLowerCase().includes('email not confirmed') ||
+        err?.message?.toLowerCase().includes('email not verified')
+
+      if (isEmailUnverified) {
         setOtpEmail(normalizedEmail)
         setShowOTPModal(true)
         toast('Please verify your email first. We sent you an OTP code.', 'info')
         return
       }
-      
-      if (mapped.field) {
-        setErrors((previous) => ({ ...previous, [mapped.field]: mapped.text }))
-      }
+      const mapped = mapLoginError(err?.message || '')
+      if (mapped.field) setErrors((prev) => ({ ...prev, [mapped.field]: mapped.text }))
       toast(mapped.toast, 'error')
     } finally {
       setSubmitting(false)
@@ -132,67 +100,45 @@ export default function LoginPage() {
   }
 
   const handleGoogle = async () => {
-    if (!configured) {
-      toast('⚠️ Supabase not configured. Add frontend/.env first.', 'error')
-      return
-    }
-
+    if (!configured) { toast('⚠️ Supabase not configured. Add frontend/.env first.', 'error'); return }
     setSubmitting(true)
     try {
       await signInWithGoogle()
-    } catch (error) {
-      toast(error?.message || 'Google login failed.', 'error')
+    } catch (err) {
+      toast(err?.message || 'Google login failed.', 'error')
       setSubmitting(false)
     }
   }
 
   const handleForgotPassword = async () => {
-    const emailToUse = (forgotEmail || normalizedEmail || '').trim().toLowerCase()
-
-    if (!emailToUse || !EMAIL_RE.test(emailToUse)) {
+    const email = (forgotEmail || normalizedEmail).trim().toLowerCase()
+    if (!email || !EMAIL_RE.test(email)) {
       toast('Enter a valid email to reset your password.', 'error')
       return
     }
-
     setSendingReset(true)
     try {
-      await forgotPassword(emailToUse)
+      await forgotPassword(email)
       toast('Password reset link sent. Check your inbox.', 'success')
       setShowForgotPanel(false)
-    } catch (error) {
-      toast(error?.message || 'Failed to send password reset email.', 'error')
+    } catch (err) {
+      toast(err?.message || 'Failed to send password reset email.', 'error')
     } finally {
       setSendingReset(false)
     }
   }
 
-  const handleOTPSuccess = (session) => {
+  const handleOTPSuccess = () => {
     setShowOTPModal(false)
     toast('Email verified! You are now signed in.', 'success')
     navigate('home')
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="auth-page">
       <div className="auth-card">
-        {!configured && (
-          <div
-            style={{
-              background: '#7c2d12',
-              color: '#fed7aa',
-              borderRadius: 10,
-              padding: '.75rem 1rem',
-              marginBottom: '1rem',
-              fontSize: '.82rem',
-              border: '1px solid #ea580c',
-              lineHeight: 1.5,
-            }}
-          >
-            ⚠️ <strong>Supabase not configured.</strong>
-            <br />
-            Create <code>frontend/.env</code> with your Supabase URL and anon key.
-          </div>
-        )}
+        {!configured && <AuthBanner />}
 
         <div className="auth-logo">
           <div className="auth-logo-box">NV</div>
@@ -201,25 +147,11 @@ export default function LoginPage() {
         </div>
 
         <div className="auth-box">
-          <button className="google-btn" onClick={handleGoogle} disabled={submitting} type="button">
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            {submitting ? 'Please wait...' : 'Continue with Google'}
-          </button>
-
-          <div className="divider">
-            <div className="divider-line" />
-            <span className="divider-text">or with email</span>
-            <div className="divider-line" />
-          </div>
+          <GoogleButton onClick={handleGoogle} disabled={submitting} />
+          <AuthDivider />
 
           <form onSubmit={handleLogin} noValidate>
-            <div className="form-group">
-              <label className="form-label">Email</label>
+            <FormInput label="Email" error={errors.email}>
               <input
                 className="form-input"
                 type="email"
@@ -229,38 +161,32 @@ export default function LoginPage() {
                 onChange={setField('email')}
                 disabled={submitting}
                 style={{
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
-                  borderColor: errors.email ? 'var(--red)' : undefined,
+                  background:   'var(--bg-input)',
+                  color:        'var(--text-primary)',
+                  borderColor:  errors.email ? 'var(--red)' : undefined,
                 }}
               />
-              {errors.email && (
-                <div style={{ color: 'var(--red)', fontSize: '.75rem', marginTop: '.3rem' }}>{errors.email}</div>
-              )}
-            </div>
+            </FormInput>
 
+            {/* Password + Forgot-password link */}
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label className="form-label">Password</label>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowForgotPanel((previous) => !previous)
-                    setForgotEmail(normalizedEmail)
-                  }}
+                  onClick={() => { setShowForgotPanel((p) => !p); setForgotEmail(normalizedEmail) }}
                   style={{
                     background: 'transparent',
-                    border: 'none',
-                    color: 'var(--brand)',
-                    fontSize: '.72rem',
-                    cursor: 'pointer',
-                    padding: 0,
+                    border:     'none',
+                    color:      'var(--brand)',
+                    fontSize:   '.72rem',
+                    cursor:     'pointer',
+                    padding:    0,
                   }}
                 >
                   Forgot password?
                 </button>
               </div>
-
               <input
                 className="form-input"
                 type="password"
@@ -270,8 +196,8 @@ export default function LoginPage() {
                 onChange={setField('password')}
                 disabled={submitting}
                 style={{
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
+                  background:  'var(--bg-input)',
+                  color:       'var(--text-primary)',
                   borderColor: errors.password ? 'var(--red)' : undefined,
                 }}
               />
@@ -282,37 +208,21 @@ export default function LoginPage() {
               )}
             </div>
 
-            <button className="form-submit" type="submit" disabled={submitting}>
-              {submitting ? (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem' }}>
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: '2px solid rgba(255,255,255,.4)',
-                      borderTopColor: '#fff',
-                      borderRadius: '50%',
-                      animation: 'spin .7s linear infinite',
-                      display: 'inline-block',
-                    }}
-                  />
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
-            </button>
+            <SpinnerBtn loading={submitting} loadingText="Signing in...">
+              Sign In
+            </SpinnerBtn>
           </form>
 
+          {/* Forgot-password panel */}
           {showForgotPanel && (
             <div
               style={{
-                marginTop: '.9rem',
-                padding: '.75rem',
+                marginTop:  '.9rem',
+                padding:    '.75rem',
                 borderRadius: 10,
-                border: '1px solid rgba(59,130,246,.3)',
+                border:     '1px solid rgba(59,130,246,.3)',
                 background: 'rgba(59,130,246,.08)',
-                color: 'var(--text-secondary)',
+                color:      'var(--text-secondary)',
               }}
             >
               <div style={{ fontSize: '.75rem', marginBottom: '.5rem' }}>
@@ -323,27 +233,23 @@ export default function LoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={forgotEmail}
-                onChange={(event) => setForgotEmail(event.target.value)}
+                onChange={(e) => setForgotEmail(e.target.value)}
                 disabled={sendingReset}
-                style={{
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
-                  marginBottom: '.5rem',
-                }}
+                style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', marginBottom: '.5rem' }}
               />
               <button
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={sendingReset}
                 style={{
-                  width: '100%',
-                  padding: '.5rem .7rem',
+                  width:       '100%',
+                  padding:     '.5rem .7rem',
                   borderRadius: 8,
-                  border: '1px solid rgba(59,130,246,.35)',
-                  background: 'transparent',
-                  color: '#60a5fa',
-                  fontWeight: 600,
-                  cursor: sendingReset ? 'not-allowed' : 'pointer',
+                  border:      '1px solid rgba(59,130,246,.35)',
+                  background:  'transparent',
+                  color:       '#60a5fa',
+                  fontWeight:  600,
+                  cursor:      sendingReset ? 'not-allowed' : 'pointer',
                 }}
               >
                 {sendingReset ? 'Sending reset email...' : 'Send reset link'}

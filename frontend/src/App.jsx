@@ -1,39 +1,36 @@
 import { useEffect } from 'react'
 import { useRouter } from './context/RouterContext'
-import { useAuth } from './context/AuthContext'
-import Navbar from './components/Navbar'
+import { useAuth }   from './context/AuthContext'
+import Navbar    from './components/Navbar'
 import NewsTicker from './components/NewsTicker'
-import Footer from './components/Footer'
-import HomePage from './pages/HomePage'
-import JobsPage from './pages/JobsPage'
-import NewsPage from './pages/NewsPage'
-import AffiliatesPage from './pages/AffiliatesPage'
-import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
-import SavedJobsPage from './pages/SavedJobsPage'
-import AdminPanel from './pages/AdminPanel'
+import Footer    from './components/Footer'
+import HomePage  from './pages/HomePage'
+import JobsPage  from './pages/JobsPage'
+import NewsPage  from './pages/NewsPage'
+import AffiliatesPage   from './pages/AffiliatesPage'
+import LoginPage        from './pages/LoginPage'
+import SignupPage       from './pages/SignupPage'
+import SavedJobsPage    from './pages/SavedJobsPage'
+import AdminPanel       from './pages/AdminPanel'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
-import CareerAIPage from './pages/CareerAIPage'
+import SmartMatchPage   from './pages/SmartMatchPage'
+
+// Pages that don't show the Footer
+const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback'])
 
 export default function App() {
   const { page, navigate } = useRouter()
   const { initialized, loading } = useAuth()
 
-  console.log('[App] Render - initialized:', initialized, 'loading:', loading, 'page:', page)
-
-  // Detect OAuth callback URL on first load.
-  // Only redirect to auth/callback when we have a real OAuth code param
-  // (i.e. the key is exactly "code" not something like "barcode").
+  // Detect OAuth / magic-link redirect on first load
   useEffect(() => {
     const path   = window.location.pathname
     const params = new URLSearchParams(window.location.search)
     const hash   = window.location.hash
 
-    // PKCE: Supabase puts ?code=<value> with no other ambiguous params
-    const hasOAuthCode  = params.has('code') && params.has('state')  // PKCE flow always has both
-    // Implicit / magic-link: #access_token in hash
-    const hasHashToken  = hash.includes('access_token=')
+    const hasOAuthCode = params.has('code') && params.has('state')  // PKCE always has both
+    const hasHashToken = hash.includes('access_token=')
 
     if (path === '/auth/callback' || hasOAuthCode || hasHashToken) {
       navigate('auth/callback')
@@ -42,27 +39,26 @@ export default function App() {
 
   // Show loading screen until auth is initialized
   if (!initialized || loading) {
-    console.log('[App] Showing loading screen')
     return (
       <div
         style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          background: 'var(--bg-base)',
+          minHeight:       '100vh',
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          flexDirection:   'column',
+          gap:             '0.75rem',
+          background:      'var(--bg-base)',
         }}
       >
         <div
           style={{
-            width: 44,
-            height: 44,
-            border: '3px solid var(--brand)',
-            borderTopColor: 'transparent',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
+            width:           44,
+            height:          44,
+            border:          '3px solid var(--brand)',
+            borderTopColor:  'transparent',
+            borderRadius:    '50%',
+            animation:       'spin 0.8s linear infinite',
           }}
         />
         <div style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
@@ -74,18 +70,18 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'home':           return <HomePage />
-      case 'govt-jobs':      return <JobsPage category="govt" />
-      case 'private-jobs':   return <JobsPage category="private" />
-      case 'news':           return <NewsPage />
-      case 'affiliates':     return <AffiliatesPage />
-      case 'login':          return <LoginPage />
-      case 'signup':         return <SignupPage />
-      case 'saved-jobs':     return <SavedJobsPage />
-      case 'career-ai':      return <CareerAIPage />
-      case 'admin':          return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
-      case 'auth/callback':  return <AuthCallbackPage />
-      default:               return <HomePage />
+      case 'home':          return <HomePage />
+      case 'govt-jobs':     return <JobsPage category="govt" />
+      case 'private-jobs':  return <JobsPage category="private" />
+      case 'news':          return <NewsPage />
+      case 'affiliates':    return <AffiliatesPage />
+      case 'login':         return <LoginPage />
+      case 'signup':        return <SignupPage />
+      case 'saved-jobs':    return <SavedJobsPage />
+      case 'smartmatch':    return <SmartMatchPage />
+      case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
+      case 'auth/callback': return <AuthCallbackPage />
+      default:              return <HomePage />
     }
   }
 
@@ -94,7 +90,7 @@ export default function App() {
       <Navbar />
       <NewsTicker />
       <main style={{ flex: 1 }}>{renderPage()}</main>
-      {!['login', 'signup', 'admin', 'auth/callback'].includes(page) && <Footer />}
+      {!NO_FOOTER_PAGES.has(page) && <Footer />}
     </div>
   )
 }
