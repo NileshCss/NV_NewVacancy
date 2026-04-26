@@ -113,11 +113,17 @@ export default function OTPVerifyModal({
     setError('')
 
     try {
+      // IMPORTANT: Supabase v2 verifyOtp always uses type='email' for
+      // 6-digit OTP codes regardless of the signup/login flow.
+      // Using type='signup' here makes Supabase treat the token as a
+      // magic-link confirmation token (not OTP), causing instant expiry errors.
+      const otpType = type === 'email_change' ? 'email_change' : 'email'
+
       const { data, error: verifyError } =
         await supabase.auth.verifyOtp({
           email,
           token: code,
-          type: type === 'signup' ? 'signup' : 'email',
+          type: otpType,
         })
 
       if (verifyError) {
@@ -126,19 +132,28 @@ export default function OTPVerifyModal({
 
       if (data?.session) {
         onSuccess(data.session)
+      } else if (data?.user) {
+        // Some Supabase configs return user but not session on verify
+        onSuccess(data)
       } else {
         throw new Error('Verification failed. Please try again.')
       }
 
     } catch (err) {
-      setError(
-        err.message?.includes('expired')
-          ? 'OTP expired. Please request a new one.'
-          : err.message?.includes('invalid')
-          ? 'Wrong OTP code. Please check and try again.'
-          : err.message || 'Verification failed. Try again.'
-      )
-      // Clear OTP on error
+      const msg = err.message || ''
+      const lower = msg.toLowerCase()
+      let errorMsg
+      if (lower.includes('expired') || lower.includes('otp_expired')) {
+        errorMsg = 'OTP expired. Please request a new one.'
+      } else if (lower.includes('invalid') || lower.includes('otp_disabled') || lower.includes('token')) {
+        errorMsg = 'Wrong OTP code. Please check and try again.'
+      } else if (lower.includes('rate') || lower.includes('too many')) {
+        errorMsg = 'Too many attempts. Please wait before trying again.'
+      } else {
+        errorMsg = msg || 'Verification failed. Try again.'
+      }
+      setError(errorMsg)
+      // Clear OTP on error so user can re-enter
       setOtp(['', '', '', '', '', ''])
       inputRefs.current[0]?.focus()
     } finally {
@@ -149,8 +164,10 @@ export default function OTPVerifyModal({
   const handleResend = async () => {
     if (!canResend) return
     try {
+      // Use the same type prop passed to the modal — don't hardcode 'signup'
+      const resendType = type === 'email_change' ? 'email_change' : 'signup'
       const { error } = await supabase.auth.resend({
-        type: 'signup',
+        type: resendType,
         email,
       })
       if (error) throw error
@@ -162,7 +179,8 @@ export default function OTPVerifyModal({
       inputRefs.current[0]?.focus()
 
     } catch (err) {
-      if (err.message?.toLowerCase().includes('rate limit') || err.message?.toLowerCase().includes('too many requests')) {
+      const lower = err.message?.toLowerCase() || ''
+      if (lower.includes('rate limit') || lower.includes('too many') || lower.includes('over_email_send_rate_limit')) {
         setError('Too many requests. Please wait a minute before resending.')
       } else {
         setError(err.message || 'Failed to resend OTP. Try again later.')

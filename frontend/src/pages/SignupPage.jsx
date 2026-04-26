@@ -148,7 +148,13 @@ export default function SignupPage() {
   const handleOTPSuccess = (session) => {
     setShowOTPModal(false)
     toast('Email verified! Welcome to New_vacancy 🎉', 'success')
-    navigate(profile?.role === 'admin' ? 'admin' : 'home')
+    // NOTE: profile is still null here — it's fetched async by AuthContext
+    // after the SIGNED_IN event fires. Navigate to home; the existing
+    // useEffect redirect guard will move admins to /admin once profile loads.
+    const role = session?.user?.user_metadata?.role
+      || session?.profile?.role
+      || null
+    navigate(role === 'admin' ? 'admin' : 'home')
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
