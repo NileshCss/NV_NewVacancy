@@ -5,7 +5,7 @@ import { daysLeft, fmtDate, timeAgo } from '../utils/helpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchSavedJobs, toggleSavedJob } from '../services/api'
 
-export default function JobCard({ job }) {
+export default function JobCard({ job, onApplyClick }) {
   const { user } = useAuth()
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -36,7 +36,10 @@ export default function JobCard({ job }) {
   }
 
   return (
-    <div className="job-card anim-up" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+    <div className="job-card anim-up" 
+         style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+         onClick={() => onApplyClick?.(job, isSaved)}
+    >
 
       {/* Featured badge */}
       {job.is_featured && (
@@ -127,20 +130,24 @@ export default function JobCard({ job }) {
 
         {/* ── FOOTER: always at bottom ── */}
         <div className="job-actions">
-          <a
-            href={job.apply_url}
-            target="_blank"
-            rel="noreferrer"
+          <button
             className="job-apply-btn"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onApplyClick?.(job, isSaved)
+            }}
             style={{ background: 'var(--brand)', color: '#fff' }}
           >
             Apply Now <span>↗</span>
-          </a>
+          </button>
           {job.notification_url && (
             <button
               className="job-notif-btn"
               title="View notification"
+              onClick={(e) => {
+                e.stopPropagation()
+                window.open(job.notification_url, '_blank')
+              }}
               style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
             >
               📄

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import JobCard from '../components/JobCard'
 import SkeletonCard from '../components/SkeletonCard'
 import AffiliateSidebar from '../components/AffiliateSidebar'
+import JobApplyModal from '../components/jobs/JobApplyModal'
 import { fetchJobs } from '../services/api'
 
 export default function JobsPage({ category }) {
@@ -11,6 +12,8 @@ export default function JobsPage({ category }) {
   const [activeTag, setActiveTag] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
+  const [selectedJob, setSelectedJob] = useState(null)
+  const [isSavedInitially, setIsSavedInitially] = useState(false)
   const PER_PAGE = 6
 
   const isGovt = category === 'govt'
@@ -33,6 +36,11 @@ export default function JobsPage({ category }) {
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   const clearFilters = () => { setSearch(''); setStateFilter(''); setActiveTag(''); setPage(1); }
+
+  const handleApplyClick = (job, isSaved) => {
+    setSelectedJob(job)
+    setIsSavedInitially(isSaved)
+  }
 
   const STATES = ['UP', 'Bihar', 'Maharashtra', 'Delhi', 'Rajasthan', 'MP', 'Gujarat', 'Karnataka', 'Tamil Nadu', 'Telangana', 'West Bengal']
   const TAGS_GOVT = ['ssc', 'upsc', 'railway', 'banking', 'police', 'teaching', 'defence']
@@ -106,7 +114,7 @@ export default function JobsPage({ category }) {
               </div>
             ) : (
               <div className="jobs-grid">
-                {paged.map(j => <JobCard key={j.id} job={j} />)}
+                {paged.map(j => <JobCard key={j.id} job={j} onApplyClick={handleApplyClick} />)}
               </div>
             )}
 
@@ -121,6 +129,13 @@ export default function JobsPage({ category }) {
           <aside className="sidebar"><AffiliateSidebar /></aside>
         </div>
       </div>
+
+      <JobApplyModal 
+        job={selectedJob} 
+        isOpen={!!selectedJob} 
+        onClose={() => setSelectedJob(null)} 
+        isSavedInitially={isSavedInitially}
+      />
     </div>
   )
 }

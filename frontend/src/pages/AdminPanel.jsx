@@ -15,7 +15,7 @@ import NewsManager      from '../components/admin/NewsManager'
 import AffiliatesManager from '../components/admin/AffiliatesManager'
 import AdminAIAssistant  from '../components/admin/AdminAIAssistant'
 import LiveUpdatesManager from './admin/LiveUpdatesManager'
-import JobModal          from '../components/admin/JobModal'
+import JobVacancyForm from '../components/admin/JobVacancyForm'
 
 // ── Defaults (news + affiliates) ──────────────────────────────────
 const NEWS_DEFAULTS = { title: '', summary: '', source_name: '', source_url: '', category: 'govt', is_featured: false, is_active: true }
@@ -470,10 +470,10 @@ export default function AdminPanel() {
         {section === 'ai'           && <AdminAIAssistant />}
       </div>
 
-      {/* ── JOB MODAL (isolated component — no stale closures) ── */}
+      {/* ── JOB FORM (Modern Upgrade) ── */}
       {selectedJob !== null && (
-        <JobModal
-          editJob={selectedJob?.id ? selectedJob : null}
+        <JobVacancyForm
+          job={selectedJob?.id ? selectedJob : null}
           onClose={() => setSelectedJob(null)}
           onSaved={handleJobSaved}
         />

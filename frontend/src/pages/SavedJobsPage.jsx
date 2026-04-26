@@ -1,20 +1,26 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from '../context/RouterContext'
 import { useQuery } from '@tanstack/react-query'
 import JobCard from '../components/JobCard'
 import SkeletonCard from '../components/SkeletonCard'
+import JobApplyModal from '../components/jobs/JobApplyModal'
 import { fetchSavedJobs } from '../services/api'
 
 export default function SavedJobsPage() {
   const { user } = useAuth()
   const { navigate } = useRouter()
+  const [selectedJob, setSelectedJob] = useState(null)
 
   const { data: saved = [], isLoading, isError } = useQuery({
     queryKey: ['saved_jobs', user?.id],
     queryFn: () => fetchSavedJobs(user?.id),
     enabled: !!user
   })
+
+  const handleApplyClick = (job) => {
+    setSelectedJob(job)
+  }
 
   if (!user) return (
     <div className="empty-state" style={{ marginTop: '4rem' }}>
@@ -52,10 +58,17 @@ export default function SavedJobsPage() {
           </div>
         ) : (
           <div className="jobs-grid">
-            {saved.map(j => <JobCard key={j.id} job={j} />)}
+            {saved.map(j => <JobCard key={j.id} job={j} onApplyClick={handleApplyClick} />)}
           </div>
         )}
       </div>
+
+      <JobApplyModal 
+        job={selectedJob} 
+        isOpen={!!selectedJob} 
+        onClose={() => setSelectedJob(null)} 
+        isSavedInitially={true}
+      />
     </div>
   )
 }

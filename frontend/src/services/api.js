@@ -55,37 +55,71 @@ export const fetchJobsForAI = async (category = null) => {
 
 export const addJob = async (job) => {
   const now = new Date().toISOString()
+
+  // Full whitelist — matches all 22 confirmed columns in live Supabase DB
   const payload = {
-    title:           job.title,
-    organization:    job.organization,
-    category:        job.category,
-    location:        job.location || 'All India',
-    apply_url:       job.apply_url,
-    salary_range:    job.salary_range || null,
-    job_description: job.job_description || '',
-    is_featured:     Boolean(job.is_featured ?? false),
-    is_active:       Boolean(job.is_active   ?? true),
-    tags:            Array.isArray(job.tags) ? job.tags : [],
-    posted_at:       now,  // ← required: prevents NOT NULL insert failure
+    title:            String(job.title || '').trim(),
+    organization:     String(job.organization || '').trim(),
+    category:         job.category || 'govt',
+    department:       job.department        ? String(job.department).trim()        : '',
+    location:         String(job.location || 'All India').trim(),
+    state:            job.state             ? String(job.state).trim()             : null,
+    qualification:    job.qualification     ? String(job.qualification).trim()     : '',
+    vacancies:        job.vacancies         ? Number(job.vacancies)                : 1,
+    salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
+    age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
+    apply_url:        String(job.apply_url || '').trim(),
+    notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
+    last_date:        job.last_date         || null,
+    job_description:  String(job.job_description || '').trim(),
+    is_featured:      Boolean(job.is_featured ?? false),
+    is_active:        Boolean(job.is_active   ?? true),
+    tags:             Array.isArray(job.tags) ? job.tags : [],
+    experience_range: job.experience_range   || '0-1',
+    posted_at:        now,
+    created_by:       job.created_by         || null,
   }
 
-  // No .select().single() — that requires a SELECT RLS policy and causes hangs
+  console.log('[addJob] payload:', payload)
   const { error } = await supabase.from('jobs').insert(payload)
-  if (error) throw dbError(error)
+  if (error) {
+    console.error('[addJob] Supabase error:', error)
+    throw dbError(error)
+  }
+  console.log('[addJob] success')
 }
 
 export const updateJob = async (id, job) => {
-  // Build a clean payload — never send internal React keys to Supabase
-  const { id: _id, ...fields } = job
+  // Full whitelist — matches all 22 confirmed columns in live Supabase DB
   const payload = {
-    ...fields,
-    // Always include job_description (even if empty string, so clears are saved)
-    job_description: fields.job_description ?? '',
+    title:            String(job.title || '').trim(),
+    organization:     String(job.organization || '').trim(),
+    category:         job.category || 'govt',
+    department:       job.department        ? String(job.department).trim()        : '',
+    location:         String(job.location || 'All India').trim(),
+    state:            job.state             ? String(job.state).trim()             : null,
+    qualification:    job.qualification     ? String(job.qualification).trim()     : '',
+    vacancies:        job.vacancies         ? Number(job.vacancies)                : 1,
+    salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
+    age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
+    apply_url:        String(job.apply_url || '').trim(),
+    notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
+    last_date:        job.last_date         || null,
+    job_description:  String(job.job_description || '').trim(),
+    is_featured:      Boolean(job.is_featured ?? false),
+    is_active:        Boolean(job.is_active   ?? true),
+    tags:             Array.isArray(job.tags) ? job.tags : [],
+    experience_range: job.experience_range   || '0-1',
+    updated_at:       new Date().toISOString(),
   }
 
-  // No .select().single() — that requires a SELECT RLS policy and causes hangs
+  console.log('[updateJob] id:', id, 'payload:', payload)
   const { error } = await supabase.from('jobs').update(payload).eq('id', id)
-  if (error) throw dbError(error)
+  if (error) {
+    console.error('[updateJob] Supabase error:', error)
+    throw dbError(error)
+  }
+  console.log('[updateJob] success')
 }
 
 export const deleteJob = async (id) => {

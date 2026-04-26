@@ -7,11 +7,14 @@ import NewsCard from '../components/NewsCard'
 import AffiliateSidebar from '../components/AffiliateSidebar'
 import SkeletonCard from '../components/SkeletonCard'
 import LiveTicker from '../components/LiveTicker'
+import JobApplyModal from '../components/jobs/JobApplyModal'
 import { fetchJobs, fetchNews, fetchAffiliates } from '../services/api'
 
 export default function HomePage() {
   const { navigate } = useRouter()
   const [search, setSearch] = useState('')
+  const [selectedJob, setSelectedJob] = useState(null)
+  const [isSavedInitially, setIsSavedInitially] = useState(false)
   const toast = useToast()
 
   const { data: jobs, isLoading: jobsLoading, isError: jobsError } = useQuery({ queryKey: ['jobs'], queryFn: () => fetchJobs() })
@@ -25,6 +28,11 @@ export default function HomePage() {
   const handleSearch = (e) => {
     e.preventDefault()
     if (search.trim()) navigate('govt-jobs')
+  }
+
+  const handleApplyClick = (job, isSaved) => {
+    setSelectedJob(job)
+    setIsSavedInitially(isSaved)
   }
 
   const STATS = [
@@ -144,7 +152,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="jobs-grid">
-                  {featuredJobs.map(j => <JobCard key={j.id} job={j} />)}
+                  {featuredJobs.map(j => <JobCard key={j.id} job={j} onApplyClick={handleApplyClick} />)}
                 </div>
               )}
             </div>
@@ -185,6 +193,14 @@ export default function HomePage() {
           </aside>
         </div>
       </div>
+
+      {/* Job Apply Modal */}
+      <JobApplyModal 
+        job={selectedJob} 
+        isOpen={!!selectedJob} 
+        onClose={() => setSelectedJob(null)} 
+        isSavedInitially={isSavedInitially}
+      />
     </div>
   )
 }

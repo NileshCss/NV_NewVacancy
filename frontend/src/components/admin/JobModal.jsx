@@ -3,8 +3,9 @@
  * Uses api.js (addJob / updateJob) which no longer call .select().single()
  * so they don't hang when SELECT RLS policy is missing.
  */
-import React, { useState } from 'react'
-import { addJob, updateJob } from '../../services/api'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../../services/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 const DEFAULTS = {
   title: '', organization: '', location: 'All India',
@@ -77,6 +78,7 @@ const Toggle = ({ active, onToggle, label }) => (
 )
 
 export default function JobModal({ editJob, onClose, onSaved }) {
+  const { user, profile } = useAuth()
   const isEdit = Boolean(editJob?.id)
 
   const [form, setForm] = useState(() =>
@@ -105,10 +107,11 @@ export default function JobModal({ editJob, onClose, onSaved }) {
     e.preventDefault()
     setError('')
 
-    // ── Validation ───────────────────────────────────────────────
-    if (!form.title.trim())        { setError('Job Title is required');    return }
-    if (!form.organization.trim()) { setError('Organization is required'); return }
-    if (!form.apply_url.trim())    { setError('Apply URL is required');    return }
+    // ── Client-side validation ───────────────────────────────────
+    if (!form.title?.trim())        { setError('Job Title is required');    return }
+    if (!form.organization?.trim()) { setError('Organization is required'); return }
+    if (!form.apply_url?.trim())    { setError('Apply URL is required');    return }
+
     try {
       const u = new URL(form.apply_url.trim())
       if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
@@ -116,60 +119,94 @@ export default function JobModal({ editJob, onClose, onSaved }) {
 
     setSaving(true)
 
+    // ── Timeout safety net ───────────────────────────────────────
+    const timeout = setTimeout(() => {
+      setSaving(false)
+      setError('Request timed out. Please check your connection.')
+    }, 15000)
+
     try {
+      console.log('=== JOB SAVE DEBUG ===')
+      console.log('Mode:', isEdit ? 'UPDATE' : 'INSERT')
+      console.log('Job ID:', editJob?.id)
+      console.log('User:', user?.id)
+      console.log('User role:', profile?.role)
+
+      // Build payload with ONLY columns that exist in your DB
       const payload = {
-        title:        form.title.trim(),
-        organization: form.organization.trim(),
-        location:     form.location.trim() || 'All India',
-        salary_range: form.salary_range.trim() || null,
-        apply_url:    form.apply_url.trim(),
-        category:     form.category,
-        is_featured:  Boolean(form.is_featured),
-        is_active:    Boolean(form.is_active),
-        tags:         [],
-        job_description: form.job_description.trim() || '',
+        title:           form.title.trim(),
+        organization:    form.organization.trim(),
+        location:        form.location?.trim() || 'All India',
+        salary_range:    form.salary_range?.trim() || '',
+        job_description: form.job_description?.trim() || '',
+        apply_url:       form.apply_url.trim(),
+        category:        form.category || 'govt',
+        is_featured:     Boolean(form.is_featured),
+        is_active:       Boolean(form.is_active),
+        updated_at:      new Date().toISOString(),
       }
 
-      console.log(`[JobModal] ${isEdit ? 'UPDATE' : 'INSERT'}`, payload)
+      console.log('[JobModal] Payload:', payload)
+
+      let data, error
 
       if (isEdit) {
-        await updateJob(editJob.id, payload)
+        // ── UPDATE ──
+        const res = await supabase
+          .from('jobs')
+          .update(payload)
+          .eq('id', editJob.id)
+          .select()
+          .single()
+        data = res.data
+        error = res.error
       } else {
-        await addJob(payload)
+        // ── INSERT ──
+        payload.created_at = new Date().toISOString()
+        payload.created_by = user?.id || null
+        
+        const res = await supabase
+          .from('jobs')
+          .insert([payload])
+          .select()
+          .single()
+        data = res.data
+        error = res.error
       }
 
-      console.log('[JobModal] ✅ Save OK')
+      // Always check error first
+      if (error) {
+        console.error('[JobModal] Supabase error:', error)
+        
+        const errorMessages = {
+          '23505': 'A job with this information already exists.',
+          '23502': 'A required field is missing. Check all fields.',
+          '23503': 'Invalid reference. Please check category or user.',
+          '42501': 'Permission denied. Make sure you are logged in as admin.',
+          'PGRST116': 'No rows returned. The job may not exist.',
+          'PGRST301': 'Database connection failed. Please try again.',
+        }
 
-      // Notify parent to refetch, then close
-      if (typeof onSaved === 'function') onSaved()
-      if (typeof onClose === 'function') onClose()
+        const userMessage = errorMessages[error.code] || error.message || 'Failed to save job.'
+        setError(userMessage)
+        setSaving(false)
+        clearTimeout(timeout)
+        return
+      }
+
+      console.log('[JobModal] Success:', data)
+
+      // Notify parent to refresh job list
+      if (typeof onSaved === 'function') onSaved(data)
+      
+      // Close modal
+      onClose()
 
     } catch (err) {
-      console.error('[JobModal] ❌ Save failed:', err)
-
-      let msg = err?.message || 'Failed to save. Please try again.'
-
-      // Friendly messages for known error codes
-      if (msg.includes('42501') || msg.includes('policy') || msg.includes('permission')) {
-        msg = 'Permission denied. Run the Supabase RLS SQL fix (see console for details).'
-        console.error(
-          '%c[JobModal] RLS FIX REQUIRED\n' +
-          'Run in Supabase SQL Editor:\n\n' +
-          'CREATE POLICY "auth_insert_jobs" ON public.jobs FOR INSERT TO authenticated WITH CHECK (true);\n' +
-          'CREATE POLICY "auth_update_jobs" ON public.jobs FOR UPDATE TO authenticated USING (true);\n' +
-          'CREATE POLICY "auth_delete_jobs" ON public.jobs FOR DELETE TO authenticated USING (true);',
-          'color: orange; font-weight: bold'
-        )
-      }
-      if (msg.includes('PGRST204') || msg.includes('schema cache')) {
-        msg = 'DB schema mismatch. The job_description column may be missing. Run: ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_description TEXT DEFAULT \'\';'
-      }
-      if (msg.includes('NetworkError') || msg.includes('fetch')) {
-        msg = 'Network error. Check your internet connection and Supabase URL.'
-      }
-
-      setError(msg)
+      console.error('[JobModal] Unexpected error:', err)
+      setError(err.message || 'An unexpected error occurred. Please try again.')
     } finally {
+      clearTimeout(timeout)
       setSaving(false)
     }
   }
@@ -267,13 +304,34 @@ export default function JobModal({ editJob, onClose, onSaved }) {
               <div>
                 <label style={S.label} htmlFor="jm-desc">Job Description</label>
                 <textarea id="jm-desc" rows={4}
-                  placeholder="Describe the role, responsibilities, eligibility..."
+                  placeholder="Use bullets (•) or newlines for a list..."
                   style={{ ...S.input, resize: 'vertical', minHeight: '90px', lineHeight: 1.6 }}
                   value={form.job_description}
                   onChange={set('job_description')}
                   onFocus={focus} onBlur={blur}
                   disabled={saving}
                 />
+                
+                {/* Live Preview */}
+                {form.job_description && (
+                  <div style={{ 
+                    marginTop: '0.75rem', 
+                    padding: '1rem', 
+                    background: 'rgba(0,0,0,0.2)', 
+                    borderRadius: '8px',
+                    border: '1px dashed var(--border)'
+                  }}>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Live Preview</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                      {form.job_description.split(/[•\n]/).map(p => p.trim()).filter(p => p.length > 0).map((point, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                          <span style={{ color: 'var(--brand)' }}>•</span>
+                          <span>{point}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Category */}
