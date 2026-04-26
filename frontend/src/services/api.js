@@ -203,36 +203,15 @@ export const deleteAffiliate = async (id) => {
   if (error) throw dbError(error)
 }
 
-// ── USERS (Admin only) ─────────────────────────────────────────
+// ── USERS (Admin only) — Direct Supabase (no backend dependency) ──────────
 export const fetchUsers = async () => {
-  // Strategy 1: Try backend API (computes effective super_admin role server-side)
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token    = session?.access_token
-    const apiBase  = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-    const res      = await fetch(`${apiBase}/admin/users`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.ok) {
-      const json = await res.json()
-      return json.data ?? []
-    }
-    // Non-network error (e.g. 403, 500) — fall through to Supabase fallback
-    const json = await res.json().catch(() => ({}))
-    console.warn('[fetchUsers] Backend error, falling back to Supabase:', json.error)
-  } catch (backendErr) {
-    // Backend not running or network error — fall through silently
-    console.warn('[fetchUsers] Backend unreachable, falling back to Supabase direct query')
-  }
-
-  // Strategy 2: Direct Supabase query (works even without backend)
   const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, email, full_name, role, avatar_url, is_blocked, created_at, updated_at')
     .order('created_at', { ascending: false })
   if (error) throw dbError(error)
 
-  // Compute effective role client-side for the fallback path
+  // Compute effective role client-side
   return (data ?? []).map(p => ({
     ...p,
     role: p.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
@@ -281,30 +260,40 @@ export const demoteAdmin = async (userId) =>
   })
 
 /**
- * Block or unblock a user.
- * Backend enforces: admins can't block other admins (only super_admin can).
+ * Block or unblock a user — Direct Supabase (no backend required).
  */
-export const blockUser = async (userId, isBlocked) =>
-  adminFetch('/admin/block', {
-    method: 'POST',
-    body: JSON.stringify({ userId, isBlocked }),
-  })
+export const blockUser = async (userId, isBlocked) => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_blocked: isBlocked, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  if (error) throw dbError(error)
+  return { success: true }
+}
 
 /**
- * Delete a user (cascade: auth.users → profiles → related data).
- * Backend enforces: can't delete super_admin or other admins (only super_admin can delete admins).
+ * Delete a user — removes from profiles table (cascade handles the rest).
  */
-export const deleteUser = async (userId) =>
-  adminFetch('/admin/delete-user', {
-    method: 'DELETE',
-    body: JSON.stringify({ userId }),
-  })
-
-// Keep updateRole as a direct alias for backward compat (now routes through backend)
-export const updateRole = async (userId, role) => {
-  // Run the backend admin route to fully delete users.
-  const { error } = await supabase.from('profiles').delete().eq('id', userId)
+export const deleteUser = async (userId) => {
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
   if (error) throw dbError(error)
+  return { success: true }
+}
+
+/**
+ * Update user role directly in Supabase — no backend required.
+ * Only super_admin should call promote; RBAC is enforced in UI layer.
+ */
+export const updateRole = async (userId, role) => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 // ── ADMIN STATS ────────────────────────────────────────────────

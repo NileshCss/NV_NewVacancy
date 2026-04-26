@@ -29,7 +29,7 @@ function mapLoginError(msg = '') {
 }
 
 export default function LoginPage() {
-  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading, initialized } = useAuth()
+  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading, initialized, isAdmin } = useAuth()
   const { navigate } = useRouter()
   const toast = useToast()
 
@@ -58,8 +58,8 @@ export default function LoginPage() {
     if (!user) return                            // not logged in
     if (user && profile === null) return         // user loaded but profile still fetching
     // profile is now confirmed (object or undefined if fetch failed)
-    navigate(profile?.role === 'admin' ? 'admin' : 'home')
-  }, [initialized, loading, user, profile, navigate])
+    navigate(isAdmin ? 'admin' : 'home')
+  }, [initialized, loading, user, profile, isAdmin, navigate])
 
   // ── Field helpers ─────────────────────────────────────────────────────────
   const setField = (field) => (e) => {
