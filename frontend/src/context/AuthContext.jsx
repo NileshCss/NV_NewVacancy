@@ -11,9 +11,10 @@ import { supabase } from '../services/supabase'
 // ─────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────
-const ADMIN_EMAIL = 'rajputnileshsingh3@gmail.com'
-const CACHE_KEY   = 'nv_profile'
-const CACHE_TTL   = 5 * 60 * 1000  // 5 minutes
+const ADMIN_EMAIL       = 'rajputnileshsingh3@gmail.com'
+const SUPER_ADMIN_EMAIL = 'rajputnileshsingh3@gmail.com'  // immutable — never reassign
+const CACHE_KEY         = 'nv_profile'
+const CACHE_TTL         = 5 * 60 * 1000  // 5 minutes
 
 // ─────────────────────────────────────────────────────────
 // CACHE HELPERS
@@ -266,12 +267,23 @@ export function AuthProvider({ children }) {
   // ─────────────────────────────────────────────────────
   // COMPUTED VALUES — single source of truth
   // ─────────────────────────────────────────────────────
-  // NOTE: isAdmin requires role='admin' only.
-  // The email hardcode was removed — it blocked any second admin from working.
+  // NOTE: isAdmin is true for BOTH admin and super_admin roles.
   const isAdmin = Boolean(
-    profile?.role === 'admin' &&
+    (profile?.role === 'admin' || profile?.role === 'super_admin' ||
+     user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) &&
     profile?.is_blocked !== true
   )
+
+  // isSuperAdmin: ONLY the hardcoded email — never trust DB role alone for this
+  const isSuperAdmin = Boolean(
+    user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() &&
+    profile?.is_blocked !== true
+  )
+
+  // Effective role — what the user's role actually is for display purposes
+  const effectiveRole = isSuperAdmin
+    ? 'super_admin'
+    : profile?.role || 'user'
 
   const displayName =
     profile?.full_name         ||
@@ -286,7 +298,7 @@ export function AuthProvider({ children }) {
   // CONTEXT VALUE
   // ─────────────────────────────────────────────────────
   const value = {
-    user, profile, loading, initialized, isAdmin,
+    user, profile, loading, initialized, isAdmin, isSuperAdmin, effectiveRole,
     savedJobs, displayName, avatarLetter,
     signIn, signUp, signInWithGoogle, signOut,
     updateProfile, toggleSave, resendVerification, forgotPassword,

@@ -7,7 +7,7 @@ import {
   fetchAllJobs, updateJob, deleteJob,
   fetchNews,    addNews,   updateNews,   deleteNews,
   fetchAffiliates, addAffiliate, updateAffiliate, deleteAffiliate,
-  fetchUsers, updateRole, blockUser, deleteUser,
+  fetchUsers, updateRole, blockUser, deleteUser, SUPER_ADMIN_EMAIL,
 } from '../services/api'
 import { getDashboardStats } from '../services/newsAffiliateService'
 import { timeAgo } from '../utils/helpers'
@@ -27,7 +27,7 @@ const Spinner = () => (
 )
 
 export default function AdminPanel() {
-  const { isAdmin, profile, loading, user } = useAuth()
+  const { isAdmin, isSuperAdmin, effectiveRole, profile, loading, user } = useAuth()
   const { navigate } = useRouter()
   const toast        = useToast()
   const queryClient  = useQueryClient()
@@ -390,20 +390,35 @@ export default function AdminPanel() {
               <div className="admin-title" style={{ color: 'var(--text-primary)' }}>👥 Manage Users</div>
               <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{users.length} total users</div>
             </div>
+            {!isSuperAdmin && (
+              <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 8, padding: '.6rem 1rem', marginBottom: '.75rem', fontSize: '.82rem', color: 'var(--brand)' }}>
+                ℹ️ Only the Super Admin can promote or demote users. You can block/unblock and delete regular users.
+              </div>
+            )}
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
               <table className="admin-table">
                 <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
                 <tbody>
                   {users.map(u => {
-                    const isSelf = u.email?.toLowerCase() === user?.email?.toLowerCase()
+                    const isSelf        = u.id === user?.id
+                    const isTargetSuper = u.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+                    const targetRole    = isTargetSuper ? 'super_admin' : (u.role || 'user')
                     return (
                       <tr key={u.id} style={{ opacity: u.is_blocked ? 0.6 : 1 }}>
                         <td style={{ color: 'var(--text-secondary)' }}>
                           {u.full_name || 'Anonymous'}
                           {isSelf && <span style={{ fontSize: '.7rem', color: 'var(--brand)', marginLeft: '.4rem', fontWeight: 600 }}>(You)</span>}
+                          {isTargetSuper && <span style={{ fontSize: '.7rem', color: '#f59e0b', marginLeft: '.4rem', fontWeight: 700 }}>👑</span>}
                         </td>
                         <td style={{ color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || u.id}</td>
-                        <td><span className={`badge ${u.role === 'admin' ? 'badge-blue' : 'badge-green'}`}>{u.role || 'user'}</span></td>
+                        <td>
+                          <span className={`badge ${
+                            targetRole === 'super_admin' ? '' :
+                            targetRole === 'admin'       ? 'badge-blue' : 'badge-green'
+                          }`} style={targetRole === 'super_admin' ? { background: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)' } : {}}>
+                            {targetRole === 'super_admin' ? '👑 Super Admin' : targetRole}
+                          </span>
+                        </td>
                         <td>
                           {u.is_blocked
                             ? <span className="badge badge-red" style={{ background: 'rgba(239,68,68,.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,.3)' }}>🚫 Blocked</span>
@@ -412,22 +427,34 @@ export default function AdminPanel() {
                         </td>
                         <td style={{ color: 'var(--text-secondary)' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                         <td>
-                          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                            {u.role !== 'admin'
-                              ? <button className="action-btn action-edit" onClick={() => confirmDel('Make this user an admin?', () => roleMut.mutate({ id: u.id, role: 'admin' }))}>👑 Admin</button>
-                              : !isSelf && <button className="action-btn" style={{ background: 'rgba(249,115,22,.1)', color: '#f97316', border: '1px solid rgba(249,115,22,.25)' }} onClick={() => confirmDel('Remove admin rights?', () => roleMut.mutate({ id: u.id, role: 'user' }))}>Remove Admin</button>
-                            }
-                            {!isSelf && (
-                              u.is_blocked
-                                ? <button className="action-btn action-edit" disabled={blockMut.isPending} onClick={() => confirmDel('Unblock this user?', () => blockMut.mutate({ id: u.id, isBlocked: false }))}>✅ Unblock</button>
-                                : <button className="action-btn" style={{ background: 'rgba(234,179,8,.1)', color: '#eab308', border: '1px solid rgba(234,179,8,.25)' }} disabled={blockMut.isPending} onClick={() => confirmDel("Block this user?", () => blockMut.mutate({ id: u.id, isBlocked: true }))}>🚫 Block</button>
-                            )}
-                            {!isSelf && (
-                              <button className="action-btn action-del" disabled={delUserMut.isPending} onClick={() => confirmDel('⚠️ Permanently delete this user?', () => delUserMut.mutate(u.id))}>
-                                {delUserMut.isPending ? '...' : '🗑️ Delete'}
-                              </button>
-                            )}
-                          </div>
+                          {isTargetSuper ? (
+                            // Super admin row — no actions allowed, ever
+                            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>—</span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+
+                              {/* Promote/Demote — SUPER ADMIN ONLY */}
+                              {isSuperAdmin && !isSelf && (
+                                targetRole !== 'admin'
+                                  ? <button className="action-btn action-edit" onClick={() => confirmDel('Promote this user to admin?', () => roleMut.mutate({ id: u.id, role: 'admin' }))}>👑 Promote</button>
+                                  : <button className="action-btn" style={{ background: 'rgba(249,115,22,.1)', color: '#f97316', border: '1px solid rgba(249,115,22,.25)' }} onClick={() => confirmDel('Remove admin rights?', () => roleMut.mutate({ id: u.id, role: 'user' }))}>↓ Demote</button>
+                              )}
+
+                              {/* Block/Unblock — admins can block users; only super_admin can block other admins */}
+                              {!isSelf && (isSuperAdmin || targetRole === 'user') && (
+                                u.is_blocked
+                                  ? <button className="action-btn action-edit" disabled={blockMut.isPending} onClick={() => confirmDel('Unblock this user?', () => blockMut.mutate({ id: u.id, isBlocked: false }))}>✅ Unblock</button>
+                                  : <button className="action-btn" style={{ background: 'rgba(234,179,8,.1)', color: '#eab308', border: '1px solid rgba(234,179,8,.25)' }} disabled={blockMut.isPending} onClick={() => confirmDel('Block this user?', () => blockMut.mutate({ id: u.id, isBlocked: true }))}>🚫 Block</button>
+                              )}
+
+                              {/* Delete — admins can delete users; only super_admin can delete other admins */}
+                              {!isSelf && (isSuperAdmin || targetRole === 'user') && (
+                                <button className="action-btn action-del" disabled={delUserMut.isPending} onClick={() => confirmDel('⚠️ Permanently delete this user?', () => delUserMut.mutate(u.id))}>
+                                  {delUserMut.isPending ? '...' : '🗑️ Delete'}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )

@@ -1,5 +1,9 @@
 import { supabase } from './supabase'
 
+// ── RBAC: immutable super admin email — for UI guards only
+// All actual enforcement is in the backend RBAC middleware.
+export const SUPER_ADMIN_EMAIL = 'rajputnileshsingh3@gmail.com'
+
 // ── Helper: build a readable error from Supabase error object ──
 const dbError = (error) => {
   if (!error) return null
@@ -166,57 +170,79 @@ export const deleteAffiliate = async (id) => {
 }
 
 // ── USERS (Admin only) ─────────────────────────────────────────
+// Fetch via backend so effective role (super_admin) is computed server-side
 export const fetchUsers = async () => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) throw dbError(error)
-  return data ?? []
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  const res = await fetch(`${apiBase}/admin/users`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Failed to fetch users')
+  return json.data ?? []
 }
 
+/** Helper: get current session token + api base */
+async function adminFetch(path, options = {}) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  const res = await fetch(`${apiBase}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
+  return json
+}
+
+/**
+ * Promote a user to 'admin' role.
+ * Backend enforces: ONLY super_admin can call this.
+ */
+export const promoteAdmin = async (userId) =>
+  adminFetch('/admin/promote', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+
+/**
+ * Demote an admin back to 'user'.
+ * Backend enforces: ONLY super_admin can call this.
+ */
+export const demoteAdmin = async (userId) =>
+  adminFetch('/admin/demote', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+
+/**
+ * Block or unblock a user.
+ * Backend enforces: admins can't block other admins (only super_admin can).
+ */
+export const blockUser = async (userId, isBlocked) =>
+  adminFetch('/admin/block', {
+    method: 'POST',
+    body: JSON.stringify({ userId, isBlocked }),
+  })
+
+/**
+ * Delete a user (cascade: auth.users → profiles → related data).
+ * Backend enforces: can't delete super_admin or other admins (only super_admin can delete admins).
+ */
+export const deleteUser = async (userId) =>
+  adminFetch('/admin/delete-user', {
+    method: 'DELETE',
+    body: JSON.stringify({ userId }),
+  })
+
+// Keep updateRole as a direct alias for backward compat (now routes through backend)
 export const updateRole = async (userId, role) => {
-  const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
-  if (error) throw dbError(error)
-}
-
-export const blockUser = async (userId, isBlocked) => {
-  const { error } = await supabase.from('profiles').update({ is_blocked: isBlocked }).eq('id', userId)
-  if (error) throw dbError(error)
-}
-
-export const deleteUser = async (userId) => {
-  // ── Strategy 1: Call backend admin API (uses service_role key) ──────────────
-  // This deletes from auth.users → CASCADE removes profiles + all related data
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-    const response = await fetch(`${apiBase}/admin/delete-user`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ userId }),
-    })
-
-    if (response.ok) return  // Backend handled it — cascade deletes everything
-
-    const result = await response.json().catch(() => ({}))
-    // If backend route doesn't exist yet (404/500), fall through to profile-only delete
-    if (response.status !== 404) throw new Error(result.error || `Delete failed (${response.status})`)
-  } catch (fetchErr) {
-    // Network error or backend not running — fall through to profile-only delete
-    if (!fetchErr.message?.includes('fetch') && !fetchErr.message?.includes('NetworkError') && !fetchErr.message?.includes('Failed to fetch')) {
-      throw dbError({ message: fetchErr.message })
-    }
-    console.warn('[deleteUser] Backend unreachable, falling back to profile-only delete:', fetchErr.message)
-  }
-
-  // ── Strategy 2 (fallback): Delete profile row only ─────────────────────────
-  // Note: this does NOT delete the auth.users record (user can still log in)
   // Run the backend admin route to fully delete users.
   const { error } = await supabase.from('profiles').delete().eq('id', userId)
   if (error) throw dbError(error)
