@@ -7,7 +7,7 @@ export default function OTPVerifyModal({
   onClose,
   type = 'signup'
 }) {
-  const [otp, setOtp]           = useState(['', '', '', '', '', ''])
+  const [otp, setOtp]           = useState(['', '', '', '', '', '', '', ''])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [resendTimer, setResendTimer] = useState(30)
@@ -40,14 +40,14 @@ export default function OTPVerifyModal({
     setError('')
 
     // Auto-advance to next input
-    if (digit && index < 5) {
+    if (digit && index < 7) {
       inputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-submit when all 6 digits entered
-    if (digit && index === 5) {
+    // Auto-submit when all 8 digits entered
+    if (digit && index === 7) {
       const fullOtp = [...newOtp].join('')
-      if (fullOtp.length === 6) {
+      if (fullOtp.length === 8) {
         setTimeout(() => handleVerify(fullOtp), 100)
       }
     }
@@ -70,7 +70,7 @@ export default function OTPVerifyModal({
 
     if (e.key === 'Enter') {
       const fullOtp = otp.join('')
-      if (fullOtp.length === 6) handleVerify(fullOtp)
+      if (fullOtp.length === 8) handleVerify(fullOtp)
     }
   }
 
@@ -80,22 +80,22 @@ export default function OTPVerifyModal({
     const pasted = e.clipboardData
       .getData('text')
       .replace(/\D/g, '')
-      .slice(0, 6)
+      .slice(0, 8)
 
     if (pasted.length > 0) {
-      const newOtp = ['', '', '', '', '', '']
+      const newOtp = ['', '', '', '', '', '', '', '']
       pasted.split('').forEach((char, i) => {
-        if (i < 6) newOtp[i] = char
+        if (i < 8) newOtp[i] = char
       })
       setOtp(newOtp)
       setError('')
 
       // Focus last filled or next empty
-      const nextIndex = Math.min(pasted.length, 5)
+      const nextIndex = Math.min(pasted.length, 7)
       inputRefs.current[nextIndex]?.focus()
 
-      // Auto-submit if 6 digits pasted
-      if (pasted.length === 6) {
+      // Auto-submit if 8 digits pasted
+      if (pasted.length === 8) {
         setTimeout(() => handleVerify(pasted), 100)
       }
     }
@@ -104,8 +104,8 @@ export default function OTPVerifyModal({
   // ── Verify OTP ───────────────────────────────────────
   const handleVerify = async (otpString) => {
     const code = otpString || otp.join('')
-    if (code.length !== 6) {
-      setError('Please enter all 6 digits')
+    if (code.length !== 8) {
+      setError('Please enter all 8 digits')
       return
     }
 
@@ -154,7 +154,7 @@ export default function OTPVerifyModal({
       }
       setError(errorMsg)
       // Clear OTP on error so user can re-enter
-      setOtp(['', '', '', '', '', ''])
+      setOtp(['', '', '', '', '', '', '', ''])
       inputRefs.current[0]?.focus()
     } finally {
       setLoading(false)
@@ -175,7 +175,7 @@ export default function OTPVerifyModal({
       setCanResend(false)
       setResendTimer(60)
       setError('')
-      setOtp(['', '', '', '', '', ''])
+      setOtp(['', '', '', '', '', '', '', ''])
       inputRefs.current[0]?.focus()
 
     } catch (err) {
@@ -286,7 +286,7 @@ export default function OTPVerifyModal({
             color: 'var(--text-muted, #94A3B8)',
             lineHeight: 1.6,
           }}>
-            We sent a 6-digit code to
+            We sent an 8-digit code to
             <br/>
             <strong style={{
               color: 'var(--brand, #f97316)',
@@ -300,7 +300,7 @@ export default function OTPVerifyModal({
         {/* OTP Input boxes */}
         <div style={{
           display: 'flex',
-          gap: '0.6rem',
+          gap: '0.4rem',
           justifyContent: 'center',
           marginBottom: '1.25rem',
         }}>
@@ -319,10 +319,10 @@ export default function OTPVerifyModal({
               onPaste={handlePaste}
               disabled={loading}
               style={{
-                width: '52px',
-                height: '60px',
+                width: '42px',
+                height: '52px',
                 textAlign: 'center',
-                fontSize: '1.5rem',
+                fontSize: '1.3rem',
                 fontWeight: 800,
                 fontFamily: 'Sora, monospace',
                 borderRadius: '14px',
@@ -368,14 +368,14 @@ export default function OTPVerifyModal({
         {/* Verify button */}
         <button
           onClick={() => handleVerify()}
-          disabled={loading || otp.join('').length !== 6}
+          disabled={loading || otp.join('').length !== 8}
           style={{
             width: '100%',
             padding: '0.9rem',
-            background: loading || otp.join('').length !== 6
+            background: loading || otp.join('').length !== 8
               ? 'var(--border, #E2E8F0)'
               : 'var(--brand, #f97316)',
-            color: loading || otp.join('').length !== 6
+            color: loading || otp.join('').length !== 8
               ? 'var(--text-muted)'
               : '#ffffff',
             border: 'none',
@@ -383,7 +383,7 @@ export default function OTPVerifyModal({
             fontSize: '0.95rem',
             fontWeight: 700,
             fontFamily: 'DM Sans, sans-serif',
-            cursor: loading || otp.join('').length !== 6
+            cursor: loading || otp.join('').length !== 8
               ? 'not-allowed'
               : 'pointer',
             transition: 'all 0.2s',
@@ -453,7 +453,7 @@ export default function OTPVerifyModal({
         }}>
           Check spam/promotions folder if you don't see the email.
           <br/>
-          Code expires in <strong>10 minutes</strong>.
+          Code expires in <strong>10 minutes</strong>. Enter all <strong>8 digits</strong>.
         </p>
       </div>
     </div>
