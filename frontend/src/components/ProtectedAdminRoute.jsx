@@ -9,18 +9,17 @@ import { useRouter } from '../context/RouterContext'
  * redirects to login if not signed in, shows "Access Denied" if not admin.
  */
 export default function ProtectedAdminRoute({ children }) {
-  const { user, profile, loading, isAdmin } = useAuth()
+  const { user, profile, loading, initialized, isAdmin, signOut } = useAuth()
   const { navigate } = useRouter()
 
   // If auth finishes loading and there's no user, send to login
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('login')
-    }
-  }, [loading, user, navigate])
+    if (!initialized || loading) return
+    if (!user) navigate('login')
+  }, [initialized, loading, user, navigate])
 
   // ── Still loading session ─────────────────────────────────────
-  if (loading) {
+  if (!initialized || loading) {
     return (
       <div style={{
         minHeight: '60vh',
@@ -75,8 +74,9 @@ export default function ProtectedAdminRoute({ children }) {
     )
   }
 
-  // ── Signed in but not admin ────────────────────────────────────
-  if (!isAdmin && profile?.role !== 'admin') {
+  // ── Signed in but not admin ────────────────────────────────────────────────
+  // Use `isAdmin` as the single source of truth (it checks role + is_blocked).
+  if (!isAdmin) {
     return (
       <div style={{
         minHeight: '60vh',
@@ -97,7 +97,12 @@ export default function ProtectedAdminRoute({ children }) {
         </p>
         <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="btn btn-primary" onClick={() => navigate('home')}>Go Home</button>
-          <button className="btn btn-ghost"   onClick={() => navigate('login')}>Sign in as Admin</button>
+          <button
+            className="btn btn-ghost"
+            onClick={async () => { await signOut(); navigate('login') }}
+          >
+            Sign in as Admin
+          </button>
         </div>
       </div>
     )

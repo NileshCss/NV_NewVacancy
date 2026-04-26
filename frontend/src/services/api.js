@@ -9,11 +9,25 @@ const dbError = (error) => {
 }
 
 // ── JOBS ───────────────────────────────────────────────────────
+// Public fetch — only active jobs shown to users
 export const fetchJobs = async (category = null) => {
   let query = supabase
     .from('jobs')
     .select('*')
-    .order('posted_at', { ascending: false })   // ← correct column name
+    .eq('is_active', true)
+    .order('posted_at', { ascending: false })
+  if (category) query = query.eq('category', category)
+  const { data, error } = await query
+  if (error) throw dbError(error)
+  return data ?? []
+}
+
+// Admin fetch — all jobs regardless of active status
+export const fetchAllJobs = async (category = null) => {
+  let query = supabase
+    .from('jobs')
+    .select('*')
+    .order('posted_at', { ascending: false })
   if (category) query = query.eq('category', category)
   const { data, error } = await query
   if (error) throw dbError(error)
@@ -36,29 +50,38 @@ export const fetchJobsForAI = async (category = null) => {
 
 
 export const addJob = async (job) => {
-  // Only send columns that exist in the schema
+  const now = new Date().toISOString()
   const payload = {
-    title:        job.title,
-    organization: job.organization,
-    category:     job.category,
-    location:     job.location || 'All India',
-    apply_url:    job.apply_url,
-    salary_range: job.salary_range || null,
-    vacancies:    job.vacancies    ? parseInt(job.vacancies) : null,
-    last_date:    job.last_date    || null,
-    is_featured:  false,
-    is_active:    true,
-    tags:         Array.isArray(job.tags) ? job.tags : [],
+    title:           job.title,
+    organization:    job.organization,
+    category:        job.category,
+    location:        job.location || 'All India',
+    apply_url:       job.apply_url,
+    salary_range:    job.salary_range || null,
+    job_description: job.job_description || '',
+    is_featured:     Boolean(job.is_featured ?? false),
+    is_active:       Boolean(job.is_active   ?? true),
+    tags:            Array.isArray(job.tags) ? job.tags : [],
+    posted_at:       now,  // ← required: prevents NOT NULL insert failure
   }
-  const { data, error } = await supabase.from('jobs').insert(payload).select().single()
+
+  // No .select().single() — that requires a SELECT RLS policy and causes hangs
+  const { error } = await supabase.from('jobs').insert(payload)
   if (error) throw dbError(error)
-  return data
 }
 
 export const updateJob = async (id, job) => {
-  const { data, error } = await supabase.from('jobs').update(job).eq('id', id).select().single()
+  // Build a clean payload — never send internal React keys to Supabase
+  const { id: _id, ...fields } = job
+  const payload = {
+    ...fields,
+    // Always include job_description (even if empty string, so clears are saved)
+    job_description: fields.job_description ?? '',
+  }
+
+  // No .select().single() — that requires a SELECT RLS policy and causes hangs
+  const { error } = await supabase.from('jobs').update(payload).eq('id', id)
   if (error) throw dbError(error)
-  return data
 }
 
 export const deleteJob = async (id) => {
@@ -163,6 +186,38 @@ export const blockUser = async (userId, isBlocked) => {
 }
 
 export const deleteUser = async (userId) => {
+  // ── Strategy 1: Call backend admin API (uses service_role key) ──────────────
+  // This deletes from auth.users → CASCADE removes profiles + all related data
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+    const response = await fetch(`${apiBase}/admin/delete-user`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ userId }),
+    })
+
+    if (response.ok) return  // Backend handled it — cascade deletes everything
+
+    const result = await response.json().catch(() => ({}))
+    // If backend route doesn't exist yet (404/500), fall through to profile-only delete
+    if (response.status !== 404) throw new Error(result.error || `Delete failed (${response.status})`)
+  } catch (fetchErr) {
+    // Network error or backend not running — fall through to profile-only delete
+    if (!fetchErr.message?.includes('fetch') && !fetchErr.message?.includes('NetworkError') && !fetchErr.message?.includes('Failed to fetch')) {
+      throw dbError({ message: fetchErr.message })
+    }
+    console.warn('[deleteUser] Backend unreachable, falling back to profile-only delete:', fetchErr.message)
+  }
+
+  // ── Strategy 2 (fallback): Delete profile row only ─────────────────────────
+  // Note: this does NOT delete the auth.users record (user can still log in)
+  // Run the backend admin route to fully delete users.
   const { error } = await supabase.from('profiles').delete().eq('id', userId)
   if (error) throw dbError(error)
 }

@@ -29,7 +29,7 @@ function mapLoginError(msg = '') {
 }
 
 export default function LoginPage() {
-  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading } = useAuth()
+  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading, initialized } = useAuth()
   const { navigate } = useRouter()
   const toast = useToast()
 
@@ -49,12 +49,17 @@ export default function LoginPage() {
   const configured      = isSupabaseConfigured()
   const normalizedEmail = useMemo(() => form.email.trim().toLowerCase(), [form.email])
 
-  // Redirect already-logged-in users
+  // Redirect already-logged-in users.
+  // IMPORTANT: wait for `initialized` + `profile` to be set before deciding
+  // the destination. Without this guard, profile.role is null when the effect
+  // first fires (profile fetch is async), so admins were always sent to 'home'.
   useEffect(() => {
-    if (!loading && user) {
-      navigate(profile?.role === 'admin' ? 'admin' : 'home')
-    }
-  }, [loading, user, profile?.role, navigate])
+    if (!initialized || loading) return          // auth not ready yet
+    if (!user) return                            // not logged in
+    if (user && profile === null) return         // user loaded but profile still fetching
+    // profile is now confirmed (object or undefined if fetch failed)
+    navigate(profile?.role === 'admin' ? 'admin' : 'home')
+  }, [initialized, loading, user, profile, navigate])
 
   // ── Field helpers ─────────────────────────────────────────────────────────
   const setField = (field) => (e) => {

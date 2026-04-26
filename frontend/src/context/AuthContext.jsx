@@ -216,6 +216,27 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }
 
+  // ── UPDATE PROFILE ────────────────────────────────────────────────
+  const updateProfile = async (updates) => {
+    if (!user) return { success: false, error: 'Not authenticated' }
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+        .select()
+        .single()
+      if (error) throw error
+      // Update local cache
+      cache.set(data)
+      if (mountedRef.current) setProfile(data)
+      return { success: true, data }
+    } catch (err) {
+      console.error('[Auth] updateProfile error:', err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
   const toggleSave = async (jobId) => {
     if (!user) return
     const already = savedJobs.includes(jobId)
@@ -239,10 +260,11 @@ export function AuthProvider({ children }) {
   // ─────────────────────────────────────────────────────
   // COMPUTED VALUES — single source of truth
   // ─────────────────────────────────────────────────────
+  // NOTE: isAdmin requires role='admin' only.
+  // The email hardcode was removed — it blocked any second admin from working.
   const isAdmin = Boolean(
     profile?.role === 'admin' &&
-    profile?.is_blocked !== true &&
-    user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+    profile?.is_blocked !== true
   )
 
   const displayName =
@@ -261,7 +283,7 @@ export function AuthProvider({ children }) {
     user, profile, loading, initialized, isAdmin,
     savedJobs, displayName, avatarLetter,
     signIn, signUp, signInWithGoogle, signOut,
-    toggleSave, resendVerification, forgotPassword,
+    updateProfile, toggleSave, resendVerification, forgotPassword,
   }
 
   return (
