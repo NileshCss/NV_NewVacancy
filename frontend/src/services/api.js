@@ -170,18 +170,43 @@ export const deleteAffiliate = async (id) => {
 }
 
 // ── USERS (Admin only) ─────────────────────────────────────────
-// Fetch via backend so effective role (super_admin) is computed server-side
 export const fetchUsers = async () => {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-  const res = await fetch(`${apiBase}/admin/users`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error || 'Failed to fetch users')
-  return json.data ?? []
+  // Strategy 1: Try backend API (computes effective super_admin role server-side)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token    = session?.access_token
+    const apiBase  = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+    const res      = await fetch(`${apiBase}/admin/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const json = await res.json()
+      return json.data ?? []
+    }
+    // Non-network error (e.g. 403, 500) — fall through to Supabase fallback
+    const json = await res.json().catch(() => ({}))
+    console.warn('[fetchUsers] Backend error, falling back to Supabase:', json.error)
+  } catch (backendErr) {
+    // Backend not running or network error — fall through silently
+    console.warn('[fetchUsers] Backend unreachable, falling back to Supabase direct query')
+  }
+
+  // Strategy 2: Direct Supabase query (works even without backend)
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw dbError(error)
+
+  // Compute effective role client-side for the fallback path
+  return (data ?? []).map(p => ({
+    ...p,
+    role: p.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+      ? 'super_admin'
+      : (p.role || 'user'),
+  }))
 }
+
 
 /** Helper: get current session token + api base */
 async function adminFetch(path, options = {}) {
