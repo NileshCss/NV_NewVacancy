@@ -173,7 +173,13 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        // CRITICAL: tells Supabase where to redirect if user clicks the
+        // email link instead of entering the OTP code. Without this,
+        // Supabase defaults to localhost and the link breaks in production.
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     })
     if (error) throw error
     return data

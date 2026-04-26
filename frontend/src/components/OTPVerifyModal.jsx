@@ -113,11 +113,15 @@ export default function OTPVerifyModal({
     setError('')
 
     try {
-      // IMPORTANT: Supabase v2 verifyOtp always uses type='email' for
-      // 6-digit OTP codes regardless of the signup/login flow.
-      // Using type='signup' here makes Supabase treat the token as a
-      // magic-link confirmation token (not OTP), causing instant expiry errors.
-      const otpType = type === 'email_change' ? 'email_change' : 'email'
+      // Supabase verifyOtp type reference:
+      //   'signup'       → OTP sent by signUp()            ← our case
+      //   'email'        → OTP sent by signInWithOtp()     ← magic link
+      //   'email_change' → OTP sent for email change
+      // Using 'email' for signup OTPs causes "token expired" because
+      // Supabase looks for a different token type in its DB.
+      const otpType = type === 'email_change' ? 'email_change'
+                    : type === 'email'        ? 'email'
+                    : 'signup'   // default: signup flow
 
       const { data, error: verifyError } =
         await supabase.auth.verifyOtp({
@@ -169,6 +173,9 @@ export default function OTPVerifyModal({
       const { error } = await supabase.auth.resend({
         type: resendType,
         email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
       if (error) throw error
 
