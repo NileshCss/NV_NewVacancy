@@ -139,6 +139,9 @@ export function AuthProvider({ children }) {
 
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user)
+          // ALWAYS clear cache on sign-in so promoted admins get their
+          // new role immediately instead of seeing a stale 'user' role.
+          cache.clear()
           const p = await fetchProfile(session.user.id)
           if (mountedRef.current) { setProfile(p); fetchSavedJobs(session.user.id) }
         }
@@ -244,6 +247,21 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // ── REFRESH PROFILE ───────────────────────────────────────────────
+  // Force-busts the cache and re-fetches from DB.
+  // Call this after a role change so the affected user sees their new
+  // permissions immediately without needing to log out and back in.
+  const refreshProfile = useCallback(async () => {
+    if (!user) return null
+    cache.clear()
+    const fresh = await fetchProfile(user.id)
+    if (mountedRef.current && fresh) {
+      if (fresh.is_blocked) { await signOutBlocked(); return null }
+      setProfile(fresh)
+    }
+    return fresh
+  }, [user, fetchProfile, signOutBlocked])
+
   const toggleSave = async (jobId) => {
     if (!user) return
     const already = savedJobs.includes(jobId)
@@ -301,7 +319,7 @@ export function AuthProvider({ children }) {
     user, profile, loading, initialized, isAdmin, isSuperAdmin, effectiveRole,
     savedJobs, displayName, avatarLetter,
     signIn, signUp, signInWithGoogle, signOut,
-    updateProfile, toggleSave, resendVerification, forgotPassword,
+    updateProfile, refreshProfile, toggleSave, resendVerification, forgotPassword,
   }
 
   return (

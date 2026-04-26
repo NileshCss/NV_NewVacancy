@@ -131,7 +131,22 @@ export default function AdminPanel() {
   const delJob     = useMutation({ mutationFn: deleteJob,       onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_jobs']  }); queryClient.invalidateQueries({ queryKey: ['jobs'] }); toast('Job deleted', 'success') },       onError: (e) => toast(e.message, 'error') })
   const delNews    = useMutation({ mutationFn: deleteNews,      onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_news']  }); toast('News deleted', 'success') },      onError: (e) => toast(e.message, 'error') })
   const delAff     = useMutation({ mutationFn: deleteAffiliate, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_affs']  }); toast('Affiliate deleted', 'success') }, onError: (e) => toast(e.message, 'error') })
-  const roleMut    = useMutation({ mutationFn: ({ id, role }) => updateRole(id, role), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast('Role updated', 'success') }, onError: (e) => toast(e.message, 'error') })
+
+  // Role mutation — after promote/demote the promoted user must re-login
+  // to get a fresh JWT with their new role. We show a clear notice.
+  const roleMut = useMutation({
+    mutationFn: ({ id, role }) => updateRole(id, role),
+    onSuccess: (_, { role }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin_users'] })
+      const action = role === 'admin' ? 'promoted to Admin 👑' : 'demoted to User'
+      toast(
+        `User ${action}. They must sign out & back in to activate new access.`,
+        'success',
+      )
+    },
+    onError: (e) => toast(e.message || 'Role update failed', 'error'),
+  })
+
   const blockMut   = useMutation({ mutationFn: ({ id, isBlocked }) => blockUser(id, isBlocked), onSuccess: (_, v) => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast(v.isBlocked ? 'User blocked 🚫' : 'User unblocked ✅', 'success') }, onError: (e) => toast(e.message, 'error') })
   const delUserMut = useMutation({ mutationFn: (id) => deleteUser(id), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin_users'] }); toast('User deleted 🗑️', 'success') }, onError: (e) => toast(e.message, 'error') })
 
@@ -388,11 +403,25 @@ export default function AdminPanel() {
           <>
             <div className="admin-header">
               <div className="admin-title" style={{ color: 'var(--text-primary)' }}>👥 Manage Users</div>
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{users.length} total users</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{users.length} total users</div>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['admin_users'] })}
+                  title="Refresh user list"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
             </div>
             {!isSuperAdmin && (
               <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 8, padding: '.6rem 1rem', marginBottom: '.75rem', fontSize: '.82rem', color: 'var(--brand)' }}>
                 ℹ️ Only the Super Admin can promote or demote users. You can block/unblock and delete regular users.
+              </div>
+            )}
+            {isSuperAdmin && (
+              <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 8, padding: '.6rem 1rem', marginBottom: '.75rem', fontSize: '.82rem', color: '#60a5fa' }}>
+                💡 After promoting a user to Admin, they must <strong>sign out and sign back in</strong> to activate dashboard access.
               </div>
             )}
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
