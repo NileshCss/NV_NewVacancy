@@ -39,6 +39,15 @@ async function extractFromPDF(buffer) {
       .replace(/\n{4,}/g, '\n\n\n')   // collapse excess blank lines
       .trim();
 
+    // Debug: log extraction result
+    console.log(
+      `[ResumeParser][PDF] Extracted ${text.length} chars | ` +
+      `Has2024: ${text.includes('2024')} | ` +
+      `HasAugust: ${text.includes('August') || text.includes('Aug')} | ` +
+      `HasPresent: ${/present|current/i.test(text)} | ` +
+      `Preview: ${text.substring(0, 120).replace(/\n/g, ' ')}`
+    );
+
     if (!text || text.length < 30) {
       throw new Error(
         'PDF appears to be scanned/image-based. ' +

@@ -65,6 +65,13 @@ export default function AuthCallbackPage() {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             if (done) return
+            // PASSWORD_RECOVERY → send to reset-password page
+            if (event === 'PASSWORD_RECOVERY') {
+              done = true
+              subscription.unsubscribe()
+              navigate('reset-password')
+              return
+            }
             if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
               subscription.unsubscribe()
               await redirectUser(session)

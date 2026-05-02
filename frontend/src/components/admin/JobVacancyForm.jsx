@@ -7,7 +7,7 @@ import {
   Calendar, AlertCircle, X, Save, RotateCcw,
   Sparkles, Globe, Tag as TagIcon, FileText
 } from 'lucide-react';
-import { updateJob, addJob } from '../../services/api';
+import { updateJob, addJob, notifyJobOnWhatsApp } from '../../services/api';
 import toast from 'react-hot-toast';
 
 /**
@@ -165,11 +165,11 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     setLoading(true);
     setSaveError('');
 
-    // ── 10-second hard timeout so it never hangs forever ──────────
+    // ── 30-second hard timeout so it never hangs forever ──────────
     const timeoutId = setTimeout(() => {
       setLoading(false);
-      setSaveError('Request timed out after 10 seconds. Check your internet connection or Supabase RLS policy.');
-    }, 10000);
+      setSaveError('Request timed out. Please check your internet connection and try again.');
+    }, 30000);
 
     try {
       console.log('[JobVacancyForm] Submitting:', isEdit ? 'UPDATE' : 'INSERT', data);
@@ -177,9 +177,18 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       if (isEdit) {
         await updateJob(job.id, data);
         toast.success('Job updated! ✨');
+        // Fire WhatsApp notification in background — never blocks the form
+        notifyJobOnWhatsApp(
+          { ...data, id: job.id },
+          'updated',
+          // Pass keys that changed so backend can skip minor-update notifications
+          Object.fromEntries(Object.keys(data).map(k => [k, true]))
+        );
       } else {
         await addJob(data);
         toast.success('Job posted! 🚀');
+        // Fire WhatsApp notification in background — never blocks the form
+        notifyJobOnWhatsApp({ ...data }, 'new');
       }
 
       clearTimeout(timeoutId);

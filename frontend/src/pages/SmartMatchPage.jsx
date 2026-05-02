@@ -277,7 +277,7 @@ export default function SmartMatchPage() {
 
   // ─ RESULTS ──────────────────────────────────────────
   if (step === 'results' && result) {
-    const { parsed, ats, job_match, weaknesses, strengths, top_actions, salary, skill_roadmap, rewritten_bullets, meta } = result
+    const { parsed, ats, job_match, weaknesses, strengths, top_actions, salary, skill_roadmap, rewritten_bullets, meta, detected_role } = result
     const atsScore = Math.min(100, Math.max(0, Number(ats?.score) || 0))
     const jmScore  = Math.min(100, Math.max(0, Number(job_match?.score) || 0))
     const summary  = {
@@ -286,13 +286,44 @@ export default function SmartMatchPage() {
       atsGrade:  String(ats?.grade || 'D'),
       readiness: Math.round(atsScore * 0.6 + jmScore * 0.4),
     }
+    // Strengths = ONLY skills Claude found in the actual CV text (ground truth)
     const allSkills = [...new Set([
       ...(Array.isArray(parsed?.skills?.languages)    ? parsed.skills.languages    : []),
       ...(Array.isArray(parsed?.skills?.frontend)     ? parsed.skills.frontend     : []),
       ...(Array.isArray(parsed?.skills?.backend)      ? parsed.skills.backend      : []),
       ...(Array.isArray(parsed?.skills?.databases)    ? parsed.skills.databases    : []),
       ...(Array.isArray(parsed?.skills?.cloud_devops) ? parsed.skills.cloud_devops : []),
+      ...(Array.isArray(parsed?.skills?.testing)      ? parsed.skills.testing      : []),
+      ...(Array.isArray(parsed?.skills?.concepts)     ? parsed.skills.concepts     : []),
     ])]
+
+    // Role-aware missing skills — prefer v4 result.missing.*, fall back to ats.breakdown
+    const missingCriticalRaw  = result.missing?.critical?.length  > 0
+      ? result.missing.critical
+      : (ats?.breakdown?.skills?.missing_critical || []).map(s => ({ skill: s, why: '' }))
+    const missingImportantRaw = result.missing?.high?.length > 0
+      ? result.missing.high
+      : (ats?.breakdown?.skills?.missing_important || []).map(s => ({ skill: s, why: '' }))
+    const missingMediumRaw    = result.missing?.medium || []
+
+    // String lists for ats breakdown back-compat
+    const missingCritical  = missingCriticalRaw.map(m  => typeof m === 'string' ? m : m.skill)
+    const missingImportant = missingImportantRaw.map(m => typeof m === 'string' ? m : m.skill)
+    const totalMissing     = missingCritical.length + missingImportant.length
+
+    // Human-readable role label
+    const ROLE_LABELS = {
+      JAVA_FULLSTACK: 'Full Stack Java Developer',
+      JAVA_BACKEND: 'Java Backend Developer',
+      MERN_FULLSTACK: 'MERN Full Stack Developer',
+      FRONTEND: 'Frontend Developer',
+      PYTHON_BACKEND: 'Python Backend Developer',
+      DEVOPS: 'DevOps Engineer',
+      DATA_SCIENCE: 'Data Scientist',
+      ANDROID: 'Android Developer',
+      GENERAL_FULLSTACK: 'Full Stack Developer',
+    }
+    const roleLabel = ROLE_LABELS[detected_role] || detected_role || 'Developer'
 
     return (
       <div className="sm-page">
@@ -303,7 +334,7 @@ export default function SmartMatchPage() {
               <div className="sm-results-label">🧠 SmartMatch™ Analysis Complete</div>
               <h1 className="sm-results-name">{summary.name}'s Results</h1>
               <p className="sm-results-meta">
-                {allSkills.length} skills detected • {parsed?.total_experience_years || 0} yrs experience • {parsed?.projects?.length || 0} projects • {meta?.experience_level || 'unknown'} level
+                {allSkills.length} skills from CV • {parsed?.total_experience_years || 0} yrs exp • {parsed?.projects?.length || 0} projects • Detected: <strong>{roleLabel}</strong>
               </p>
             </div>
             <div className="sm-rings">
@@ -330,10 +361,10 @@ export default function SmartMatchPage() {
             <div className="sm-tab-panel">
               <div className="sm-stat-grid">
                 {[
-                  { icon: '🎯', label: 'ATS Score',   value: `${summary.atsScore}%`,                                 sub: `Grade ${summary.atsGrade}`,            color: COLORS.brand  },
-                  { icon: '💼', label: 'Job Match',    value: `${job_match?.score || 0}%`,                            sub: job_match?.verdict || 'No JD provided', color: COLORS.green  },
-                  { icon: '🛠', label: 'Skills Found', value: allSkills.length,                                       sub: 'detected in resume',                   color: COLORS.purple },
-                  { icon: '⚡', label: 'Skill Gaps',   value: ats?.breakdown?.skills?.missing_critical?.length || 0, sub: 'critical missing',                     color: COLORS.yellow },
+                  { icon: '🎯', label: 'ATS Score',   value: `${summary.atsScore}%`,              sub: `Grade ${summary.atsGrade}`,            color: COLORS.brand  },
+                  { icon: '💼', label: 'Job Match',    value: `${job_match?.score || 0}%`,          sub: job_match?.verdict || 'No JD provided', color: COLORS.green  },
+                  { icon: '🛠', label: 'Skills Found', value: allSkills.length,                     sub: 'detected from your CV',                color: COLORS.purple },
+                  { icon: '⚡', label: 'Skill Gaps',   value: totalMissing,                         sub: `${missingCritical.length} critical gaps for ${roleLabel}`, color: COLORS.yellow },
                 ].map(item => (
                   <div key={item.label} className="sm-stat">
                     <div className="sm-stat-icon" style={{ background: `${item.color}18` }}>{item.icon}</div>
@@ -401,17 +432,46 @@ export default function SmartMatchPage() {
                 </div>
                 {ats?.breakdown && (
                   <>
-                    <Bar value={ats.breakdown.skills?.raw_score     || 0} color={COLORS.brand}  label="🛠 Skill Match"   weight="40%" />
-                    <Bar value={ats.breakdown.experience?.raw_score || 0} color={COLORS.green}  label="💼 Experience"    weight="25%" />
-                    <Bar value={ats.breakdown.education?.raw_score  || 0} color={COLORS.purple} label="🎓 Education"     weight="15%" />
-                    <Bar value={ats.breakdown.completeness?.raw_score || 0} color={COLORS.yellow} label="📋 Completeness" weight="10%" />
-                    <Bar value={ats.breakdown.keywords?.raw_score   || 0} color={COLORS.blue}   label="🔑 Keywords"     weight="10%" />
+                    <Bar value={ats.breakdown.skills?.raw_score     || ats.breakdown.skills?.raw     || 0} color={COLORS.brand}  label="🛠 Skill Match"   weight="40%" />
+                    <Bar value={ats.breakdown.experience?.raw_score || ats.breakdown.experience?.raw || 0} color={COLORS.green}  label="💼 Experience"    weight="25%" />
+                    <Bar value={ats.breakdown.education?.raw_score  || ats.breakdown.education?.raw  || 0} color={COLORS.purple} label="🎓 Education"     weight="15%" />
+                    <Bar value={ats.breakdown.completeness?.raw_score || ats.breakdown.completeness?.raw || 0} color={COLORS.yellow} label="📋 Completeness" weight="10%" />
+                    <Bar value={ats.breakdown.keywords?.raw_score   || ats.breakdown.keywords?.raw   || 0} color={COLORS.blue}   label="🔑 Keywords"     weight="10%" />
+                    {ats.breakdown.cert_bonus > 0 && (
+                      <div style={{ fontSize: '.82rem', color: COLORS.green, marginTop: '.5rem', fontWeight: 600 }}>
+                        🏆 Certification Bonus: +{ats.breakdown.cert_bonus} pts
+                      </div>
+                    )}
                   </>
                 )}
                 {ats?.breakdown?.keywords?.missing_high_value?.length > 0 && (
                   <div style={{ marginTop: '1.5rem' }}>
-                    <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: '.6rem' }}>High-Value Missing Keywords</div>
+                    <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: '.6rem' }}>High-Value Missing Keywords (for {roleLabel})</div>
                     <div>{ats.breakdown.keywords.missing_high_value.map(k => <Chip key={k} label={k} type="missing" />)}</div>
+                  </div>
+                )}
+                {result.experience_parsed?.length > 0 && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: '.75rem' }}>Experience Breakdown</div>
+                    {result.experience_parsed.map((exp, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.83rem' }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{exp.company}</span>
+                          <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>{exp.role}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>{exp.months}mo</span>
+                          <span style={{ color: exp.is_tech_role ? COLORS.green : COLORS.yellow, fontSize: '11px', fontWeight: 600 }}>
+                            {exp.is_tech_role ? '🖥 Tech' : '📋 Non-tech'} T{exp.tier}
+                          </span>
+                          <span style={{ color: COLORS.brand, fontWeight: 700 }}>{exp.weighted_months?.toFixed(1)}w</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      Total weighted: {result.experience_parsed.reduce((s, e) => s + (e.weighted_months || 0), 0).toFixed(1)} months
+                      {' '}(of 24 needed for 100%)
+                    </div>
                   </div>
                 )}
               </div>
@@ -464,18 +524,57 @@ export default function SmartMatchPage() {
               <div className="sm-gaps-grid">
                 <div className="sm-gap-card strengths">
                   <h3 className="sm-gap-title" style={{ color: COLORS.green }}>✅ Your Strengths ({allSkills.length})</h3>
-                  <div>{allSkills.slice(0, 20).map(s => <Chip key={s} label={s} type="match" />)}</div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>Skills extracted directly from your CV</p>
+                  {allSkills.length === 0 ? (
+                    <p style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>No skills detected. Make sure your resume clearly lists your technical skills.</p>
+                  ) : (
+                    <div>{allSkills.slice(0, 24).map(s => <Chip key={s} label={s} type="match" />)}</div>
+                  )}
                 </div>
                 <div className="sm-gap-card missing-skills">
-                  <h3 className="sm-gap-title" style={{ color: COLORS.red }}>⚠️ Critical Missing ({ats?.breakdown?.skills?.missing_critical?.length || 0})</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                    {(ats?.breakdown?.skills?.missing_critical || []).map(skill => (
-                      <div key={skill} className="sm-gap-item">
-                        <span className="sm-gap-item-name">{skill}</span>
-                        <Chip label="Critical" type="missing" />
-                      </div>
-                    ))}
-                  </div>
+                  <h3 className="sm-gap-title" style={{ color: COLORS.red }}>⚠️ Skill Gaps ({totalMissing})</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>Based on your detected role: <strong>{roleLabel}</strong></p>
+                  {totalMissing === 0 && missingMediumRaw.length === 0 ? (
+                    <p style={{ fontSize: '.85rem', color: COLORS.green }}>🎉 Great profile! No critical skill gaps for a {roleLabel} role.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                      {missingCriticalRaw.map((item, i) => {
+                        const skill = typeof item === 'string' ? item : item.skill
+                        const why   = typeof item === 'string' ? '' : item.why || item.role_relevance || ''
+                        return (
+                          <div key={i} className="sm-gap-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                              <span className="sm-gap-item-name">{skill}</span>
+                              <Chip label="✗ Critical" type="missing" />
+                            </div>
+                            {why && <span style={{ fontSize: '11px', color: 'var(--text-muted)', paddingLeft: '2px' }}>{why}</span>}
+                          </div>
+                        )
+                      })}
+                      {missingImportantRaw.map((item, i) => {
+                        const skill = typeof item === 'string' ? item : item.skill
+                        const why   = typeof item === 'string' ? '' : item.why || item.role_relevance || ''
+                        return (
+                          <div key={i} className="sm-gap-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                              <span className="sm-gap-item-name">{skill}</span>
+                              <span className="sm-chip" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 500 }}>! High</span>
+                            </div>
+                            {why && <span style={{ fontSize: '11px', color: 'var(--text-muted)', paddingLeft: '2px' }}>{why}</span>}
+                          </div>
+                        )
+                      })}
+                      {missingMediumRaw.map((item, i) => {
+                        const skill = typeof item === 'string' ? item : item.skill
+                        return (
+                          <div key={i} className="sm-gap-item">
+                            <span className="sm-gap-item-name">{skill}</span>
+                            <span className="sm-chip" style={{ background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 500 }}>~ Medium</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
                 {skill_roadmap?.length > 0 && (
                   <div className="sm-roadmap">
@@ -501,14 +600,15 @@ export default function SmartMatchPage() {
           {/* ── TIPS TAB ── */}
           {activeTab === 'tips' && (
             <div className="sm-tab-panel">
-              {strengths?.length > 0 && (
+              {allSkills.length > 0 && (
                 <div className="sm-strengths">
-                  <h3 className="sm-card-title" style={{ color: COLORS.green, marginBottom: '.6rem' }}>✅ Strengths</h3>
-                  {strengths.map((s, i) => (
-                    <div key={i} className="sm-strength-row">
-                      <span className="sm-strength-check">✓</span> {s}
-                    </div>
-                  ))}
+                  <h3 className="sm-card-title" style={{ color: COLORS.green, marginBottom: '.4rem' }}>✅ Detected Strengths from CV</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '.8rem' }}>Role: <strong>{roleLabel}</strong></p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '1rem' }}>
+                    {allSkills.slice(0, 16).map(s => (
+                      <span key={s} className="sm-chip match">✓ {s.charAt(0).toUpperCase() + s.slice(1)}</span>
+                    ))}
+                  </div>
                 </div>
               )}
               {weaknesses?.map((w, i) => <RecCard key={i} rec={w} />)}

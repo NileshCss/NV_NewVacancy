@@ -15,22 +15,31 @@ import AdminPanel       from './pages/AdminPanel'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import SmartMatchPage   from './pages/SmartMatchPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 
 // Pages that don't show the Footer
-const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback'])
+const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password'])
 
 export default function App() {
   const { page, navigate } = useRouter()
   const { initialized, loading } = useAuth()
 
-  // Detect OAuth / magic-link redirect on first load
+  // Detect OAuth / magic-link / password-reset redirect on first load
   useEffect(() => {
     const path   = window.location.pathname
     const params = new URLSearchParams(window.location.search)
     const hash   = window.location.hash
 
-    const hasOAuthCode = params.has('code') && params.has('state')  // PKCE always has both
-    const hasHashToken = hash.includes('access_token=')
+    const hasOAuthCode  = params.has('code') && params.has('state')  // PKCE (Google OAuth)
+    const hasHashToken  = hash.includes('access_token=')
+    // Password recovery links include type=recovery in the hash
+    const isRecovery    = hash.includes('type=recovery') || params.get('type') === 'recovery'
+
+    if (isRecovery) {
+      // Go straight to reset-password page — AuthCallbackPage will pick up the token
+      navigate('auth/callback')
+      return
+    }
 
     if (path === '/auth/callback' || hasOAuthCode || hasHashToken) {
       navigate('auth/callback')
@@ -81,6 +90,7 @@ export default function App() {
       case 'smartmatch':    return <SmartMatchPage />
       case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback': return <AuthCallbackPage />
+      case 'reset-password': return <ResetPasswordPage />
       default:              return <HomePage />
     }
   }

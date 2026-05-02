@@ -45,6 +45,15 @@ router.post(
         mode
       );
 
+      // Debug: log key extraction details to diagnose date-parse issues
+      console.log(
+        `[SmartMatch][PDF] File: ${file.originalname} | ` +
+        `Size: ${file.size}B | Role: ${result.detected_role} | ` +
+        `Score: ${result.ats?.score} | ExpRaw: ${result.ats?.breakdown?.experience?.raw || result.ats?.breakdown?.experience?.raw_score || 0} | ` +
+        `TechMonths: ${result.ats?.breakdown?.experience?.total_tech_months || 0} | ` +
+        `SkillsFound: ${Object.values(result.found_skills || {}).flat().length}`
+      );
+
       // Save to Supabase if user is authenticated
       if (req.user?.id && result.ats?.score) {
         try {
