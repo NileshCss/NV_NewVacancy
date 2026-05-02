@@ -35,6 +35,9 @@ export default function AdminPanel() {
   // ── Section nav ────────────────────────────────────────────────
   const [section, setSection] = useState('dashboard')
 
+  // ── Inline confirm modal (replaces window.confirm) ────────────
+  const [confirmModal, setConfirmModal] = useState(null) // { msg, onOk }
+
   // ── Job modal: null=closed | {}=Add mode | job object=Edit mode
   const [selectedJob, setSelectedJob] = useState(null)
 
@@ -158,7 +161,7 @@ export default function AdminPanel() {
   const toggleNewsFeat   = (n) => updateNews(n.id, { is_featured: !n.is_featured }).then(() => { inv(['admin_news']); toast('Updated', 'success') }).catch(e => toast(e.message, 'error'))
   const toggleAffActive  = (a) => updateAffiliate(a.id, { is_active: !a.is_active }).then(() => { inv(['admin_affs']); toast('Updated', 'success') }).catch(e => toast(e.message, 'error'))
 
-  const confirmDel = (msg, fn) => { if (window.confirm(msg)) fn() }
+  const confirmDel = (msg, fn) => setConfirmModal({ msg, onOk: fn })
 
   // ── News / Aff submit handlers ─────────────────────────────────
   const saveNews = (e) => {
@@ -215,6 +218,40 @@ export default function AdminPanel() {
       ❌ {mut.error?.message || 'An error occurred. Please try again.'}
     </div>
   ) : null
+
+  // ── Inline Confirm Modal ───────────────────────────────────────
+  const ConfirmModal = () => !confirmModal ? null : (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+    }} onClick={() => setConfirmModal(null)}>
+      <div style={{
+        background: 'var(--bg-surface, #1e293b)',
+        border: '1px solid rgba(239,68,68,0.3)',
+        borderRadius: 16, padding: '1.75rem', maxWidth: 380, width: '100%',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '0.75rem' }}>⚠️</div>
+        <p style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '0.95rem', fontWeight: 600, textAlign: 'center', marginBottom: '0.5rem' }}>
+          Are you sure?
+        </p>
+        <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.82rem', textAlign: 'center', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          {confirmModal.msg}
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={() => setConfirmModal(null)}
+            style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+          >Cancel</button>
+          <button
+            onClick={() => { confirmModal.onOk(); setConfirmModal(null) }}
+            style={{ flex: 1, padding: '0.6rem', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', boxShadow: '0 4px 12px rgba(239,68,68,0.35)' }}
+          >Yes, Confirm</button>
+        </div>
+      </div>
+    </div>
+  )
 
   const Toggle = ({ active, onToggle }) => (
     <button
@@ -555,6 +592,8 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {/* ── CONFIRM MODAL ─────────────────────────────────────── */}
+      <ConfirmModal />
     </div>
   )
 }
