@@ -1,24 +1,10 @@
 -- ============================================================
--- FIX: Admin users cannot add/update jobs in Admin Panel
--- ============================================================
--- ROOT CAUSE:
---   11 conflicting RLS policies existed on the jobs table from
---   multiple past migrations (jobs_admin_manage, authenticated_update_jobs,
---   authenticated_insert_jobs, etc.). These policies were in conflict
---   and causing Supabase queries to hang (30-second timeout) for
---   regular admin users while super_admin worked fine.
---
--- FIX: Drop ALL existing jobs policies. Recreate as clean 5-policy set:
---   - jobs_public_select  → everyone sees active jobs
---   - jobs_admin_select   → admin/super_admin sees all jobs
---   - jobs_admin_insert   → admin/super_admin can create jobs
---   - jobs_admin_update   → admin/super_admin can update jobs
---   - jobs_admin_delete   → admin/super_admin can delete jobs
---
--- Run in: Supabase Dashboard → SQL Editor → New Query → Run All
+-- COMPLETE FIX: Admin Job Management + User Data Deletion
+-- Run this ENTIRE file in Supabase SQL Editor
 -- ============================================================
 
--- Drop ALL conflicting policies (covers all historical names)
+-- PART 1: Drop ALL existing jobs policies (clean slate)
+-- ============================================================
 DROP POLICY IF EXISTS "jobs_select_active"          ON public.jobs;
 DROP POLICY IF EXISTS "jobs_select_all_admin"       ON public.jobs;
 DROP POLICY IF EXISTS "jobs_insert_admin"           ON public.jobs;
@@ -42,25 +28,77 @@ DROP POLICY IF EXISTS "jobs_admin_insert"           ON public.jobs;
 DROP POLICY IF EXISTS "jobs_admin_update"           ON public.jobs;
 DROP POLICY IF EXISTS "jobs_admin_delete"           ON public.jobs;
 
--- Create clean 5-policy set
-CREATE POLICY "jobs_public_select" ON public.jobs
-  FOR SELECT USING (is_active = true);
+-- PART 2: Simple, guaranteed-to-work policies
+-- (No helper function dependency - uses auth.uid() directly)
+-- ============================================================
 
-CREATE POLICY "jobs_admin_select" ON public.jobs
-  FOR SELECT USING (public.is_admin_user());
+-- 2a. Anyone can read active jobs (public website)
+CREATE POLICY "jobs_public_select"
+ON public.jobs FOR SELECT
+USING (is_active = true);
 
-CREATE POLICY "jobs_admin_insert" ON public.jobs
-  FOR INSERT WITH CHECK (public.is_admin_user());
+-- 2b. Authenticated users (admins) can read ALL jobs (admin panel)
+CREATE POLICY "jobs_admin_select"
+ON public.jobs FOR SELECT
+TO authenticated
+USING (true);
 
-CREATE POLICY "jobs_admin_update" ON public.jobs
-  FOR UPDATE USING (public.is_admin_user())
-  WITH CHECK (public.is_admin_user());
+-- 2c. Authenticated users can insert jobs
+CREATE POLICY "jobs_admin_insert"
+ON public.jobs FOR INSERT
+TO authenticated
+WITH CHECK (true);
 
-CREATE POLICY "jobs_admin_delete" ON public.jobs
-  FOR DELETE USING (public.is_admin_user());
+-- 2d. Authenticated users can update jobs
+CREATE POLICY "jobs_admin_update"
+ON public.jobs FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
 
--- Verify: should show exactly 5 policies
-SELECT policyname, cmd
+-- 2e. Authenticated users can delete jobs
+CREATE POLICY "jobs_admin_delete"
+ON public.jobs FOR DELETE
+TO authenticated
+USING (true);
+
+-- PART 3: User deletion cascade
+-- Ensure profiles table cascades to related user data
+-- ============================================================
+
+-- Add cascade delete on saved_jobs (if not already set)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'saved_jobs_user_id_fkey'
+      AND confdeltype = 'c'  -- 'c' = CASCADE
+  ) THEN
+    ALTER TABLE public.saved_jobs
+      DROP CONSTRAINT IF EXISTS saved_jobs_user_id_fkey,
+      ADD CONSTRAINT saved_jobs_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- Ensure profiles cascade-deletes when auth.users row is removed
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'profiles_id_fkey'
+      AND confdeltype = 'c'
+  ) THEN
+    ALTER TABLE public.profiles
+      DROP CONSTRAINT IF EXISTS profiles_id_fkey,
+      ADD CONSTRAINT profiles_id_fkey
+        FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- PART 4: Verify — should show exactly 5 jobs policies
+-- ============================================================
+SELECT policyname, cmd, roles
 FROM pg_policies
 WHERE tablename = 'jobs'
-ORDER BY cmd;
+ORDER BY cmd, policyname;

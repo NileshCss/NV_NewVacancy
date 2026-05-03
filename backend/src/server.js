@@ -11,7 +11,9 @@ const morgan       = require('morgan');
 const smartmatchRoutes = require('./routes/smartmatch.routes');
 const adminRoutes      = require('./routes/admin.routes');
 const whatsappRoutes   = require('./routes/whatsapp.routes');
+const scraperRoutes    = require('./routes/scraper.routes');
 const whatsappService  = require('./services/whatsappService');
+const { startExpiryJob } = require('./jobs/expiryJob');
 const logger           = require('./utils/logger');
 
 const app  = express();
@@ -19,8 +21,19 @@ const PORT = process.env.PORT || 5000;
 
 // ── Security middleware ──────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:5174', // Vite fallback port when 5173 is occupied
+];
+
 app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman) and whitelisted origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods:     ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
@@ -35,6 +48,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/smartmatch', smartmatchRoutes);
 app.use('/api/admin',      adminRoutes);
+app.use('/api/admin',      scraperRoutes);   // scrape-job, scrape-and-save, trigger-expiry-check
 app.use('/api/whatsapp',   whatsappRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────
@@ -81,6 +95,9 @@ async function startServer() {
     logger.info(`[Server] WhatsApp:    ${process.env.WHATSAPP_ENABLED === 'true' ? 'enabled' : 'disabled'}`);
     console.log(`\n🚀  NewVacancy API  →  http://localhost:${PORT}`);
     console.log(`📱  WhatsApp: ${process.env.WHATSAPP_ENABLED === 'true' ? 'initialising…' : 'disabled'}\n`);
+
+    // Start nightly expiry checker cron (2:00 AM IST)
+    startExpiryJob();
   });
 }
 

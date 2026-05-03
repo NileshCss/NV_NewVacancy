@@ -65,7 +65,7 @@ export const addJob = async (job) => {
     location:         String(job.location || 'All India').trim(),
     state:            job.state             ? String(job.state).trim()             : null,
     qualification:    job.qualification     ? String(job.qualification).trim()     : '',
-    vacancies:        job.vacancies         ? Number(job.vacancies)                : 1,
+    vacancies:        job.vacancies         ? String(job.vacancies).trim()           : 'Not specified',
     salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
     age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
     apply_url:        String(job.apply_url || '').trim(),
@@ -81,6 +81,7 @@ export const addJob = async (job) => {
   }
 
   console.log('[addJob] payload:', payload)
+  // No .select().single() — causes hang when SELECT RLS policy blocks read-back
   const { error } = await supabase.from('jobs').insert(payload)
   if (error) {
     console.error('[addJob] Supabase error:', error)
@@ -99,7 +100,7 @@ export const updateJob = async (id, job) => {
     location:         String(job.location || 'All India').trim(),
     state:            job.state             ? String(job.state).trim()             : null,
     qualification:    job.qualification     ? String(job.qualification).trim()     : '',
-    vacancies:        job.vacancies         ? Number(job.vacancies)                : 1,
+    vacancies:        job.vacancies         ? String(job.vacancies).trim()           : 'Not specified',
     salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
     age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
     apply_url:        String(job.apply_url || '').trim(),
@@ -114,6 +115,7 @@ export const updateJob = async (id, job) => {
   }
 
   console.log('[updateJob] id:', id, 'payload:', payload)
+  // No .select().single() — causes hang when SELECT RLS policy blocks read-back
   const { error } = await supabase.from('jobs').update(payload).eq('id', id)
   if (error) {
     console.error('[updateJob] Supabase error:', error)
@@ -261,6 +263,43 @@ export const notifyJobOnWhatsApp = async (job, action = 'new', changed = {}) => 
   }
 }
 
+// ── JOB URL SCRAPER ────────────────────────────────────────────────────────
+/**
+ * Scrape a job URL and extract structured data via Claude AI.
+ * Returns preview JSON — does NOT save to DB.
+ * Admin reviews in form modal before clicking Save.
+ *
+ * @param {string} url - The job page URL
+ * @returns {Promise<{ success: true, data: object, meta: object }>}
+ * @throws on network error or when job is expired (code: 'URL_EXPIRED' | 'JOB_EXPIRED')
+ */
+export const scrapeJobPreview = async (url) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+  const res = await fetch(`${apiBase}/admin/scrape-job`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ url }),
+  })
+
+  const json = await res.json().catch(() => ({}))
+  // Return the raw response so callers can inspect status codes (410 = expired)
+  return { ok: res.ok, status: res.status, ...json }
+}
+
+/**
+ * Manually trigger the nightly expiry check (super-admin only).
+ * @returns {Promise<{ success: boolean, results: object }>}
+ */
+export const triggerExpiryCheck = async () =>
+  adminFetch('/admin/trigger-expiry-check', { method: 'POST' })
+
+
 /**
  * Promote a user to 'admin' role.
  * Backend enforces: ONLY super_admin can call this.
@@ -282,40 +321,36 @@ export const demoteAdmin = async (userId) =>
   })
 
 /**
- * Block or unblock a user — Direct Supabase (no backend required).
+ * Block or unblock a user.
+ * Routes through backend so service-role is used — more reliable than direct Supabase.
  */
-export const blockUser = async (userId, isBlocked) => {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_blocked: isBlocked, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-  if (error) throw dbError(error)
-  return { success: true }
-}
+export const blockUser = async (userId, isBlocked) =>
+  adminFetch('/admin/block', {
+    method: 'POST',
+    body: JSON.stringify({ userId, isBlocked }),
+  })
 
 /**
- * Delete a user — removes from profiles table (cascade handles the rest).
+ * Permanently delete a user — calls backend which uses auth.admin.deleteUser.
+ * This removes the user from auth.users AND cascades to profiles + all related data.
+ * Only using profiles.delete() was leaving the user in auth.users (still able to re-login).
  */
-export const deleteUser = async (userId) => {
-  const { error } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', userId)
-  if (error) throw dbError(error)
-  return { success: true }
-}
+export const deleteUser = async (userId) =>
+  adminFetch('/admin/delete-user', {
+    method: 'DELETE',
+    body: JSON.stringify({ userId }),
+  })
 
 /**
- * Update user role directly in Supabase — no backend required.
- * Only super_admin should call promote; RBAC is enforced in UI layer.
+ * Update user role — routes through backend (promote/demote endpoints).
+ * Only super_admin can change roles; enforced on both frontend + backend.
  */
 export const updateRole = async (userId, role) => {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ role, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-  if (error) throw dbError(error)
-  return { success: true }
+  const endpoint = role === 'admin' ? '/admin/promote' : '/admin/demote'
+  return adminFetch(endpoint, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
 }
 
 // ── ADMIN STATS ────────────────────────────────────────────────

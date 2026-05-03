@@ -8,6 +8,7 @@ import {
   fetchNews,    addNews,   updateNews,   deleteNews,
   fetchAffiliates, addAffiliate, updateAffiliate, deleteAffiliate,
   fetchUsers, updateRole, blockUser, deleteUser, SUPER_ADMIN_EMAIL,
+  triggerExpiryCheck,
 } from '../services/api'
 import { getDashboardStats } from '../services/newsAffiliateService'
 import { timeAgo } from '../utils/helpers'
@@ -40,6 +41,9 @@ export default function AdminPanel() {
 
   // ── Job modal: null=closed | {}=Add mode | job object=Edit mode
   const [selectedJob, setSelectedJob] = useState(null)
+
+  // ── Expiry check state (super admin only) ──────────────────────────
+  const [checkingExpiry, setCheckingExpiry] = useState(false)
 
   // ── News / Affiliates modal state ──────────────────────────────
   const [showNewsModal, setShowNewsModal] = useState(false)
@@ -107,6 +111,24 @@ export default function AdminPanel() {
     // Refresh both admin list and public jobs page
     queryClient.invalidateQueries({ queryKey: ['admin_jobs'] })
     queryClient.invalidateQueries({ queryKey: ['jobs'] })
+  }
+
+  // ── Manual expiry check (super admin only) ───────────────────────
+  const handleExpiryCheck = async () => {
+    setCheckingExpiry(true)
+    try {
+      const res = await triggerExpiryCheck()
+      if (res.success) {
+        const r = res.results
+        toast(`✅ Expiry check done! Checked: ${r.checked} | Expired: ${r.expired} | Errors: ${r.errors}`, 'success')
+        queryClient.invalidateQueries({ queryKey: ['admin_jobs'] })
+        queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      }
+    } catch (err) {
+      toast(err.message || 'Expiry check failed', 'error')
+    } finally {
+      setCheckingExpiry(false)
+    }
   }
 
   // ── News / Aff helpers ─────────────────────────────────────────
@@ -397,7 +419,19 @@ export default function AdminPanel() {
           <>
             <div className="admin-header">
               <div className="admin-title" style={{ color: 'var(--text-primary)' }}>💼 Manage Jobs</div>
-              <button className="btn btn-primary btn-sm" onClick={openAddJob}>+ Add Job</button>
+              <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+                {isSuperAdmin && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleExpiryCheck}
+                    disabled={checkingExpiry}
+                    title="Scan all scraped jobs and deactivate expired ones"
+                  >
+                    {checkingExpiry ? '🔄 Checking…' : '🗑 Check Expired'}
+                  </button>
+                )}
+                <button className="btn btn-primary btn-sm" onClick={openAddJob}>+ Add Job</button>
+              </div>
             </div>
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
               <table className="admin-table">

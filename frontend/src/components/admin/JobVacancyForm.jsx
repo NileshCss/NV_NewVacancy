@@ -7,7 +7,7 @@ import {
   Calendar, AlertCircle, X, Save, RotateCcw,
   Sparkles, Globe, Tag as TagIcon, FileText
 } from 'lucide-react';
-import { updateJob, addJob, notifyJobOnWhatsApp } from '../../services/api';
+import { updateJob, addJob, notifyJobOnWhatsApp, scrapeJobPreview } from '../../services/api';
 import toast from 'react-hot-toast';
 
 /**
@@ -81,7 +81,7 @@ const SelectField = ({ label, name, icon: Icon, register, error, options, ...res
         {...rest}
       >
         {options.map(opt => (
-          <option key={opt.value} value={opt.value} style={{ background: 'var(--navy-8)', color: '#fff' }}>
+          <option key={opt.value} value={opt.value} style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
             {opt.label}
           </option>
         ))}
@@ -147,7 +147,7 @@ const TagInput = ({ label, value, onChange, placeholder, icon: Icon }) => {
 export default function JobVacancyForm({ job, onClose, onSaved }) {
   const isEdit = Boolean(job?.id);
 
-  const { register, handleSubmit, control, reset, formState: { errors, isDirty } } = useForm({
+  const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm({
     defaultValues: isEdit ? { ...job, tags: job?.tags || [] } : {
       title: '', organization: '', location: 'All India',
       salary_range: '', apply_url: '', job_description: '',
@@ -156,10 +156,96 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     }
   });
 
-  const [loading, setLoading] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [saveError,  setSaveError]  = useState('');
+
+  // ── URL Auto-Fill state ──────────────────────────────────────────────────
+  const [jobUrl,     setJobUrl]     = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [extractMsg, setExtractMsg] = useState(null); // { type: 'success'|'warn'|'error', text }
 
   useEffect(() => { if (job) reset(job); }, [job, reset]);
+
+  // ── Extract job details from URL ─────────────────────────────────────────
+  const extractFromUrl = async () => {
+    if (!jobUrl.trim()) {
+      setExtractMsg({ type: 'error', text: 'Please enter a job URL first.' });
+      return;
+    }
+    if (!jobUrl.trim().startsWith('http')) {
+      setExtractMsg({ type: 'error', text: 'URL must start with http:// or https://' });
+      return;
+    }
+
+    setExtracting(true);
+    setExtractMsg(null);
+
+    try {
+      const result = await scrapeJobPreview(jobUrl.trim());
+
+      // Expired job detected
+      if (result.status === 410 || result.code === 'JOB_EXPIRED' || result.code === 'URL_EXPIRED') {
+        setExtractMsg({
+          type: 'error',
+          text: `⚠️ This job link is expired or closed. You cannot add an expired vacancy.`,
+        });
+        return;
+      }
+
+      if (!result.success || !result.data) {
+        setExtractMsg({
+          type: 'error',
+          text: result.error || 'Failed to extract job details. Try a different URL.',
+        });
+        return;
+      }
+
+      const j = result.data;
+
+      // Map AI fields → react-hook-form field names (matching addJob/updateJob payload)
+      if (j.jobTitle)      setValue('title',           j.jobTitle,      { shouldDirty: true });
+      if (j.company)       setValue('organization',    j.company,       { shouldDirty: true });
+      if (j.location)      setValue('location',        j.location,      { shouldDirty: true });
+      if (j.salary)        setValue('salary_range',    j.salary,        { shouldDirty: true });
+      if (j.description)   setValue('job_description', j.description,   { shouldDirty: true });
+      if (j.applyLink)     setValue('apply_url',       j.applyLink,     { shouldDirty: true });
+      if (j.qualification) setValue('qualification',   j.qualification, { shouldDirty: true });
+      if (j.positions)     setValue('vacancies',       j.positions,     { shouldDirty: true });
+      if (Array.isArray(j.skills) && j.skills.length > 0)
+                           setValue('tags',            j.skills,        { shouldDirty: true });
+      // Map category: AI returns 'Government' | 'Private' etc. → DB uses 'govt' | 'private'
+      if (j.category) {
+        const catMap = {
+          Government: 'govt', Banking: 'govt', Railway: 'govt',
+          Defence: 'govt', Teaching: 'govt',
+          Private: 'private', IT: 'private', Engineering: 'private',
+          Healthcare: 'private', Other: 'private',
+        };
+        setValue('category', catMap[j.category] ?? 'govt', { shouldDirty: true });
+      }
+
+      const confidence = j.confidence ?? 0;
+      if (confidence < 50) {
+        setExtractMsg({
+          type: 'warn',
+          text: `⚠️ Low confidence (${confidence}%). Fields auto-filled but please verify carefully.`,
+        });
+      } else {
+        setExtractMsg({
+          type: 'success',
+          text: `✓ Details extracted (confidence: ${confidence}%). Review below and click Post Vacancy.`,
+        });
+      }
+    } catch (err) {
+      console.error('[JobVacancyForm] extractFromUrl error:', err);
+      setExtractMsg({
+        type: 'error',
+        text: 'Network error. Please check your connection and try again.',
+      });
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -260,6 +346,100 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
               </div>
             )}
 
+          {/* ── URL Auto-Fill Panel ──────────────────────────────────────────── */}
+            <div style={{
+              padding: '20px 24px',
+              background: 'rgba(249,115,22,0.04)',
+              border: '1px solid rgba(249,115,22,0.2)',
+              borderRadius: '20px',
+              display: 'flex', flexDirection: 'column', gap: '12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(249,115,22,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>
+                  🔗
+                </div>
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--brand)' }}>Auto-Fill from URL</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>Paste any job link to auto-populate all fields</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center',
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: '14px', overflow: 'hidden',
+                }}>
+                  <div style={{ paddingLeft: '14px', color: 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                    <Globe size={18} />
+                  </div>
+                  <input
+                    type="url"
+                    id="jvf-url-input"
+                    value={jobUrl}
+                    onChange={e => { setJobUrl(e.target.value); setExtractMsg(null); }}
+                    onKeyDown={e => e.key === 'Enter' && !extracting && extractFromUrl()}
+                    placeholder="https://company.com/jobs/... or https://ssc.nic.in/notice..."
+                    disabled={extracting}
+                    style={{
+                      flex: 1, background: 'transparent', border: 'none',
+                      padding: '12px 14px', color: 'var(--text-primary)',
+                      fontSize: '13px', outline: 'none',
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  id="jvf-extract-btn"
+                  onClick={extractFromUrl}
+                  disabled={extracting || !jobUrl.trim()}
+                  style={{
+                    padding: '12px 20px', borderRadius: '14px', border: 'none',
+                    background: extracting || !jobUrl.trim() ? 'rgba(100,116,139,0.3)' : 'var(--brand)',
+                    color: '#fff', fontWeight: '800', fontSize: '12px',
+                    textTransform: 'uppercase', letterSpacing: '0.08em',
+                    cursor: extracting || !jobUrl.trim() ? 'not-allowed' : 'pointer',
+                    flexShrink: 0, whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  {extracting ? (
+                    <>
+                      <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: '_jvf_spin .7s linear infinite', display: 'inline-block' }} />
+                      Extracting…
+                    </>
+                  ) : (
+                    <>✨ Extract Details</>
+                  )}
+                </button>
+              </div>
+
+              {/* Status message */}
+              {extractMsg && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '10px', fontSize: '12px',
+                  lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: '8px',
+                  background: extractMsg.type === 'success'
+                    ? 'rgba(34,197,94,0.08)'
+                    : extractMsg.type === 'warn'
+                    ? 'rgba(234,179,8,0.08)'
+                    : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${
+                    extractMsg.type === 'success' ? 'rgba(34,197,94,0.3)'
+                    : extractMsg.type === 'warn'  ? 'rgba(234,179,8,0.3)'
+                    : 'rgba(239,68,68,0.3)'
+                  }`,
+                  color: extractMsg.type === 'success' ? '#4ade80'
+                    : extractMsg.type === 'warn' ? '#facc15'
+                    : '#f87171',
+                }}>
+                  {extractMsg.text}
+                </div>
+              )}
+            </div>
+            {/* ── End URL Auto-Fill Panel ────────────────────────────────── */}
+
             {/* Section: Basic Info */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -288,7 +468,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
                 <InputField label="Salary Range" name="salary_range" icon={IndianRupee} register={register} placeholder="e.g. ₹12L - ₹18L PA" />
-                <InputField label="Positions" name="vacancies" icon={Users} type="number" register={register} placeholder="1" />
+                <InputField label="Positions" name="vacancies" icon={Users} register={register} placeholder="e.g. 5 or Not specified" />
                 <SelectField label="Experience" name="experience_range" icon={Clock} register={register} options={[{ label: 'Fresher (0-1 yr)', value: '0-1' }, { label: 'Junior (1-3 yrs)', value: '1-3' }, { label: 'Mid (3-5 yrs)', value: '3-5' }, { label: 'Senior (5+ yrs)', value: '5+' }]} />
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
               </div>
@@ -373,6 +553,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       </motion.div>
 
       <style>{`
+        @keyframes _jvf_spin { to { transform: rotate(360deg); } }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
         .input-wrapper:focus-within { border-color: var(--brand) !important; box-shadow: 0 0 0 4px rgba(249,115,22,0.1); }
