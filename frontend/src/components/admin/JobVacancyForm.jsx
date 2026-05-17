@@ -310,12 +310,6 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     setLoading(true);
     setSaveError('');
 
-    // ── 12-second hard timeout — surfaces RLS / network errors fast ─
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      setSaveError('Network timeout. Please check your connection or database status.');
-    }, 12000);
-
     try {
       console.log('[JobVacancyForm] Submitting:', isEdit ? 'UPDATE' : 'INSERT', data);
 
@@ -329,16 +323,19 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
         toast.success('Vacancy posted successfully');
       }
 
-      clearTimeout(timeoutId);
       if (onSaved) onSaved();
+      reset(DEFAULT_VALUES); // Fully reset the form state for the next use
       onClose();
     } catch (err) {
-      clearTimeout(timeoutId);
       console.error('[JobVacancyForm] Error:', err);
-      const msg = err.message || 'Failed to save job. Please try again.';
+      // If it was an AbortError from our API timeout, format it nicely
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
+      const msg = isTimeout 
+        ? 'Database connection timed out. Please check your network or Supabase status.' 
+        : (err.message || 'Failed to save job. Please try again.');
+      
       setSaveError(msg);
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

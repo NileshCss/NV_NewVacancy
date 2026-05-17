@@ -21,3 +21,22 @@ export const supabase = isSupabaseConfigured()
       },
     })
   : createClient('https://placeholder.supabase.co', 'placeholder-key')
+
+// Returns a fresh client instance to prevent stale state issues on repeated saves
+export const createFreshClient = () => {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      autoRefreshToken:   true,
+      persistSession:     true,
+    },
+  })
+}
+
+// Ensure session is valid, attempting a refresh if missing
+export const ensureActiveSession = async () => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    const { error } = await supabase.auth.refreshSession()
+    if (error) throw new Error('Auth session expired. Please refresh the page.')
+  }
+}

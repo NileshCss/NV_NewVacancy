@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase, createFreshClient, ensureActiveSession } from './supabase'
 
 // ── RBAC: immutable super admin email — for UI guards only
 // All actual enforcement is in the backend RBAC middleware.
@@ -67,6 +67,9 @@ export const fetchJobsForAI = async (category = null) => {
 
 
 export const addJob = async (job) => {
+  await ensureActiveSession()
+  const freshClient = createFreshClient()
+  
   const now = new Date().toISOString()
 
   // Handle both old and new form field names gracefully
@@ -96,16 +99,27 @@ export const addJob = async (job) => {
   }
 
   console.log('[addJob] payload:', payload)
-  const { data, error } = await supabase.from('jobs').insert(payload).select().single()
-  if (error) {
-    console.error('[addJob] Supabase error:', error)
-    throw dbError(error)
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  
+  try {
+    const { data, error } = await freshClient.from('jobs').insert(payload).select().single().abortSignal(controller.signal)
+    if (error) {
+      console.error('[addJob] Supabase error:', error)
+      throw dbError(error)
+    }
+    console.log('[addJob] success')
+    return data
+  } finally {
+    clearTimeout(timeoutId)
   }
-  console.log('[addJob] success')
-  return data
 }
 
 export const updateJob = async (id, job) => {
+  await ensureActiveSession()
+  const freshClient = createFreshClient()
+  
   const payload = { updated_at: new Date().toISOString() }
 
   if ('title' in job) payload.title = String(job.title || '').trim()
@@ -133,13 +147,21 @@ export const updateJob = async (id, job) => {
   if ('skill_tags' in job || 'tags' in job) payload.tags = Array.isArray(job.skill_tags || job.tags) ? (job.skill_tags || job.tags) : []
 
   console.log('[updateJob] id:', id, 'payload:', payload)
-  const { data, error } = await supabase.from('jobs').update(payload).eq('id', id).select().single()
-  if (error) {
-    console.error('[updateJob] Supabase error:', error)
-    throw dbError(error)
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  
+  try {
+    const { data, error } = await freshClient.from('jobs').update(payload).eq('id', id).select().single().abortSignal(controller.signal)
+    if (error) {
+      console.error('[updateJob] Supabase error:', error)
+      throw dbError(error)
+    }
+    console.log('[updateJob] success')
+    return data
+  } finally {
+    clearTimeout(timeoutId)
   }
-  console.log('[updateJob] success')
-  return data
 }
 
 export const deleteJob = async (id) => {
