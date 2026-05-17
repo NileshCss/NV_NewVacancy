@@ -56,6 +56,51 @@ const InputField = ({ label, name, icon: Icon, register, error, placeholder, typ
 );
 
 /**
+ * Reusable Textarea Component
+ */
+const TextareaField = ({ label, name, icon: Icon, register, error, placeholder, rows = 4, ...rest }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+    <label style={{ 
+      fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', 
+      letterSpacing: '0.08em', color: 'var(--text-muted)', marginLeft: '4px' 
+    }}>
+      {label} {rest.required && <span style={{ color: 'var(--red)' }}>*</span>}
+    </label>
+    <div className="input-wrapper" style={{
+      position: 'relative', display: 'flex', alignItems: 'flex-start', 
+      background: 'var(--bg-input)', border: `1px solid ${error ? 'var(--red)' : 'var(--border)'}`,
+      borderRadius: '14px', transition: 'all 0.2s ease',
+      overflow: 'hidden', padding: '12px 14px'
+    }}>
+      <div style={{ color: 'var(--text-muted)', display: 'flex', marginTop: '2px', marginRight: '14px' }}>
+        <Icon size={18} />
+      </div>
+      <textarea
+        {...register(name, { required: rest.required })}
+        placeholder={placeholder}
+        rows={rows}
+        style={{
+          width: '100%', background: 'transparent', border: 'none', 
+          color: 'var(--text-primary)', fontSize: '14px', outline: 'none',
+          resize: 'vertical', minHeight: '80px', padding: 0
+        }}
+        {...rest}
+      />
+    </div>
+    <AnimatePresence>
+      {error && (
+        <motion.span 
+          initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} 
+          style={{ fontSize: '10px', fontWeight: '700', color: 'var(--red)', marginLeft: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <AlertCircle size={10} /> {error.message || 'Required'}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  </div>
+);
+
+/**
  * Reusable Select Component
  */
 const SelectField = ({ label, name, icon: Icon, register, error, options, ...rest }) => (
@@ -150,7 +195,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
   const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm({
     defaultValues: isEdit ? { ...job, tags: job?.tags || [], vacancies: job?.vacancies ?? '' } : {
       title: '', organization: '', location: 'All India',
-      salary_range: '', apply_url: '',
+      salary_range: '', apply_url: '', job_description: '',
       category: 'govt', is_featured: false, is_active: true,
       tags: [], vacancies: '',
     }
@@ -463,6 +508,8 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
                 <InputField label="Age Limit" name="age_limit" icon={Users} register={register} placeholder="e.g. 18-35 years" />
               </div>
+              
+              <TextareaField label="Job Description" name="job_description" icon={FileText} register={register} placeholder="Detailed job description..." />
             </div>
 
             {/* Section: Application Info */}

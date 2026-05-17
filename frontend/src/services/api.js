@@ -87,6 +87,7 @@ export const addJob = async (job) => {
     apply_url:        String(job.apply_url || '').trim(),
     notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
     last_date:        job.last_date         || null,
+    job_description:  job.job_description   ? String(job.job_description).trim() : null,
     is_featured:      Boolean(job.is_featured ?? false),
     is_active:        Boolean(job.is_active   ?? true),
     tags:             Array.isArray(job.tags) ? job.tags : [],
@@ -123,6 +124,7 @@ export const updateJob = async (id, job) => {
   if ('apply_url' in job) payload.apply_url = String(job.apply_url || '').trim()
   if ('notification_url' in job) payload.notification_url = job.notification_url ? String(job.notification_url).trim() : null
   if ('last_date' in job) payload.last_date = job.last_date || null
+  if ('job_description' in job) payload.job_description = job.job_description ? String(job.job_description).trim() : null
   if ('is_featured' in job) payload.is_featured = Boolean(job.is_featured)
   if ('is_active' in job) payload.is_active = Boolean(job.is_active)
   if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []
