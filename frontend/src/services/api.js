@@ -56,26 +56,27 @@ export const fetchJobsForAI = async (category = null) => {
 export const addJob = async (job) => {
   const now = new Date().toISOString()
 
-  // Full whitelist — matches all 22 confirmed columns in live Supabase DB
+  // Parse vacancies as integer — DB column is INTEGER not TEXT
+  const vacanciesRaw = job.vacancies
+  const vacanciesInt = vacanciesRaw ? parseInt(String(vacanciesRaw).replace(/[^0-9]/g, ''), 10) : null
+
   const payload = {
     title:            String(job.title || '').trim(),
     organization:     String(job.organization || '').trim(),
     category:         job.category || 'govt',
-    department:       job.department        ? String(job.department).trim()        : '',
+    department:       job.department        ? String(job.department).trim()        : null,
     location:         String(job.location || 'All India').trim(),
     state:            job.state             ? String(job.state).trim()             : null,
-    qualification:    job.qualification     ? String(job.qualification).trim()     : '',
-    vacancies:        job.vacancies         ? String(job.vacancies).trim()           : 'Not specified',
+    qualification:    job.qualification     ? String(job.qualification).trim()     : null,
+    vacancies:        !isNaN(vacanciesInt) ? vacanciesInt : null,
     salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
     age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
     apply_url:        String(job.apply_url || '').trim(),
     notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
     last_date:        job.last_date         || null,
-    job_description:  String(job.job_description || '').trim(),
     is_featured:      Boolean(job.is_featured ?? false),
     is_active:        Boolean(job.is_active   ?? true),
     tags:             Array.isArray(job.tags) ? job.tags : [],
-    experience_range: job.experience_range   || '0-1',
     posted_at:        now,
     created_by:       job.created_by         || null,
   }
@@ -92,21 +93,23 @@ export const addJob = async (job) => {
 
 export const updateJob = async (id, job) => {
   const payload = { updated_at: new Date().toISOString() }
-  
+
   if ('title' in job) payload.title = String(job.title || '').trim()
   if ('organization' in job) payload.organization = String(job.organization || '').trim()
   if ('category' in job) payload.category = job.category || 'govt'
-  if ('department' in job) payload.department = job.department ? String(job.department).trim() : ''
+  if ('department' in job) payload.department = job.department ? String(job.department).trim() : null
   if ('location' in job) payload.location = String(job.location || 'All India').trim()
   if ('state' in job) payload.state = job.state ? String(job.state).trim() : null
-  if ('qualification' in job) payload.qualification = job.qualification ? String(job.qualification).trim() : ''
-  if ('vacancies' in job) payload.vacancies = job.vacancies ? String(job.vacancies).trim() : 'Not specified'
+  if ('qualification' in job) payload.qualification = job.qualification ? String(job.qualification).trim() : null
+  if ('vacancies' in job) {
+    const v = parseInt(String(job.vacancies || '').replace(/[^0-9]/g, ''), 10)
+    payload.vacancies = !isNaN(v) ? v : null
+  }
   if ('salary_range' in job) payload.salary_range = job.salary_range ? String(job.salary_range).trim() : null
   if ('age_limit' in job) payload.age_limit = job.age_limit ? String(job.age_limit).trim() : null
   if ('apply_url' in job) payload.apply_url = String(job.apply_url || '').trim()
   if ('notification_url' in job) payload.notification_url = job.notification_url ? String(job.notification_url).trim() : null
   if ('last_date' in job) payload.last_date = job.last_date || null
-  if ('job_description' in job) payload.job_description = String(job.job_description || '').trim()
   if ('is_featured' in job) payload.is_featured = Boolean(job.is_featured)
   if ('is_active' in job) payload.is_active = Boolean(job.is_active)
   if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []

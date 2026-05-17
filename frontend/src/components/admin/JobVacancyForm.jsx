@@ -148,11 +148,11 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
   const isEdit = Boolean(job?.id);
 
   const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm({
-    defaultValues: isEdit ? { ...job, tags: job?.tags || [] } : {
+    defaultValues: isEdit ? { ...job, tags: job?.tags || [], vacancies: job?.vacancies ?? '' } : {
       title: '', organization: '', location: 'All India',
-      salary_range: '', apply_url: '', job_description: '',
+      salary_range: '', apply_url: '',
       category: 'govt', is_featured: false, is_active: true,
-      tags: [], vacancies: 1, experience_range: '0-1'
+      tags: [], vacancies: '',
     }
   });
 
