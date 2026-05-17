@@ -251,11 +251,11 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     setLoading(true);
     setSaveError('');
 
-    // ── 30-second hard timeout so it never hangs forever ──────────
+    // ── 12-second hard timeout — surfaces RLS / network errors fast ─
     const timeoutId = setTimeout(() => {
       setLoading(false);
-      setSaveError('Request timed out. Please check your internet connection and try again.');
-    }, 30000);
+      setSaveError('Save timed out. This usually means an RLS policy issue. Please run migration 016 in Supabase SQL Editor and try again.');
+    }, 12000);
 
     try {
       console.log('[JobVacancyForm] Submitting:', isEdit ? 'UPDATE' : 'INSERT', data);
@@ -263,18 +263,9 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       if (isEdit) {
         await updateJob(job.id, data);
         toast.success('Job updated! ✨');
-        // Fire WhatsApp notification in background — never blocks the form
-        notifyJobOnWhatsApp(
-          { ...data, id: job.id },
-          'updated',
-          // Pass keys that changed so backend can skip minor-update notifications
-          Object.fromEntries(Object.keys(data).map(k => [k, true]))
-        );
       } else {
         await addJob(data);
         toast.success('Job posted! 🚀');
-        // Fire WhatsApp notification in background — never blocks the form
-        notifyJobOnWhatsApp({ ...data }, 'new');
       }
 
       clearTimeout(timeoutId);
