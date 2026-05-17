@@ -315,28 +315,6 @@ async function adminFetch(path, options = {}) {
   return json
 }
 
-// ── WHATSAPP NOTIFICATIONS ─────────────────────────────────────────────────
-/**
- * Fire-and-forget WhatsApp notification after job create/update.
- * Never throws — logs the error and moves on so job saving is unaffected.
- *
- * @param {object} job    - The saved job object (from Supabase)
- * @param {'new'|'updated'} action
- * @param {object} [changed] - Map of changed field names for update (optional)
- */
-export const notifyJobOnWhatsApp = async (job, action = 'new', changed = {}) => {
-  try {
-    await adminFetch('/whatsapp/notify-job', {
-      method: 'POST',
-      body: JSON.stringify({ job, action, changed }),
-    })
-    console.log('[WhatsApp] Notification sent for:', job.title)
-  } catch (err) {
-    // Non-fatal: WhatsApp failure must never affect job creation UX
-    console.warn('[WhatsApp] Notification failed (non-fatal):', err.message)
-  }
-}
-
 // ── JOB URL SCRAPER ────────────────────────────────────────────────────────
 /**
  * Scrape a job URL and extract structured data via Claude AI.
