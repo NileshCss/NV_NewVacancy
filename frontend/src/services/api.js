@@ -96,13 +96,13 @@ export const addJob = async (job) => {
   }
 
   console.log('[addJob] payload:', payload)
-  // No .select().single() — causes hang when SELECT RLS policy blocks read-back
-  const { error } = await supabase.from('jobs').insert(payload)
+  const { data, error } = await supabase.from('jobs').insert(payload).select().single()
   if (error) {
     console.error('[addJob] Supabase error:', error)
     throw dbError(error)
   }
   console.log('[addJob] success')
+  return data
 }
 
 export const updateJob = async (id, job) => {
@@ -130,12 +130,13 @@ export const updateJob = async (id, job) => {
   if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []
 
   console.log('[updateJob] id:', id, 'payload:', payload)
-  const { error } = await supabase.from('jobs').update(payload).eq('id', id)
+  const { data, error } = await supabase.from('jobs').update(payload).eq('id', id).select().single()
   if (error) {
     console.error('[updateJob] Supabase error:', error)
     throw dbError(error)
   }
   console.log('[updateJob] success')
+  return data
 }
 
 export const deleteJob = async (id) => {

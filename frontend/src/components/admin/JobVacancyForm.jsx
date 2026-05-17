@@ -306,10 +306,12 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       console.log('[JobVacancyForm] Submitting:', isEdit ? 'UPDATE' : 'INSERT', data);
 
       if (isEdit) {
-        await updateJob(job.id, data);
+        const updated = await updateJob(job.id, data);
+        notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
         toast.success('Job updated! ✨');
       } else {
-        await addJob(data);
+        const added = await addJob(data);
+        notifyJobOnWhatsApp(added || data, 'new');
         toast.success('Job posted! 🚀');
       }
 
