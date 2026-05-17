@@ -69,8 +69,8 @@ export const fetchJobsForAI = async (category = null) => {
 export const addJob = async (job) => {
   const now = new Date().toISOString()
 
-  // Parse vacancies as integer — DB column is INTEGER not TEXT
-  const vacanciesRaw = job.vacancies
+  // Handle both old and new form field names gracefully
+  const vacanciesRaw = job.positions || job.vacancies
   const vacanciesInt = vacanciesRaw ? parseInt(String(vacanciesRaw).replace(/[^0-9]/g, ''), 10) : null
 
   const payload = {
@@ -87,10 +87,10 @@ export const addJob = async (job) => {
     apply_url:        String(job.apply_url || '').trim(),
     notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
     last_date:        job.last_date         || null,
-    job_description:  job.job_description   ? String(job.job_description).trim() : null,
+    job_description:  job.description || job.job_description ? String(job.description || job.job_description).trim() : null,
     is_featured:      Boolean(job.is_featured ?? false),
-    is_active:        Boolean(job.is_active   ?? true),
-    tags:             Array.isArray(job.tags) ? job.tags : [],
+    is_active:        Boolean(job.visible ?? job.is_active ?? true),
+    tags:             Array.isArray(job.skill_tags || job.tags) ? (job.skill_tags || job.tags) : [],
     posted_at:        now,
     created_by:       job.created_by         || null,
   }
@@ -115,19 +115,22 @@ export const updateJob = async (id, job) => {
   if ('location' in job) payload.location = String(job.location || 'All India').trim()
   if ('state' in job) payload.state = job.state ? String(job.state).trim() : null
   if ('qualification' in job) payload.qualification = job.qualification ? String(job.qualification).trim() : null
-  if ('vacancies' in job) {
-    const v = parseInt(String(job.vacancies || '').replace(/[^0-9]/g, ''), 10)
+  
+  if ('positions' in job || 'vacancies' in job) {
+    const v = parseInt(String(job.positions || job.vacancies || '').replace(/[^0-9]/g, ''), 10)
     payload.vacancies = !isNaN(v) ? v : null
   }
+  
   if ('salary_range' in job) payload.salary_range = job.salary_range ? String(job.salary_range).trim() : null
   if ('age_limit' in job) payload.age_limit = job.age_limit ? String(job.age_limit).trim() : null
   if ('apply_url' in job) payload.apply_url = String(job.apply_url || '').trim()
   if ('notification_url' in job) payload.notification_url = job.notification_url ? String(job.notification_url).trim() : null
   if ('last_date' in job) payload.last_date = job.last_date || null
-  if ('job_description' in job) payload.job_description = job.job_description ? String(job.job_description).trim() : null
+  
+  if ('description' in job || 'job_description' in job) payload.job_description = (job.description || job.job_description) ? String(job.description || job.job_description).trim() : null
   if ('is_featured' in job) payload.is_featured = Boolean(job.is_featured)
-  if ('is_active' in job) payload.is_active = Boolean(job.is_active)
-  if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []
+  if ('visible' in job || 'is_active' in job) payload.is_active = Boolean(job.visible ?? job.is_active)
+  if ('skill_tags' in job || 'tags' in job) payload.tags = Array.isArray(job.skill_tags || job.tags) ? (job.skill_tags || job.tags) : []
 
   console.log('[updateJob] id:', id, 'payload:', payload)
   const { data, error } = await supabase.from('jobs').update(payload).eq('id', id).select().single()

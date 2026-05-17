@@ -192,13 +192,27 @@ const TagInput = ({ label, value, onChange, placeholder, icon: Icon }) => {
 export default function JobVacancyForm({ job, onClose, onSaved }) {
   const isEdit = Boolean(job?.id);
 
+  const DEFAULT_VALUES = {
+    title: '', organization: '', location: 'All India',
+    salary_range: 'Not Disclosed', apply_url: '', description: '',
+    category: 'govt', is_featured: false, visible: true,
+    skill_tags: [], positions: '', qualification: '', age_limit: '', last_date: ''
+  };
+
+  const getInitialValues = () => {
+    if (!isEdit) return DEFAULT_VALUES;
+    return {
+      ...job, 
+      skill_tags: job?.tags || job?.skill_tags || [], 
+      positions: job?.vacancies || job?.positions || '',
+      visible: job?.is_active ?? job?.visible ?? true,
+      description: job?.job_description || job?.description || '',
+      salary_range: job?.salary_range || 'Not Disclosed'
+    };
+  };
+
   const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm({
-    defaultValues: isEdit ? { ...job, tags: job?.tags || [], vacancies: job?.vacancies ?? '' } : {
-      title: '', organization: '', location: 'All India',
-      salary_range: '', apply_url: '', job_description: '',
-      category: 'govt', is_featured: false, is_active: true,
-      tags: [], vacancies: '',
-    }
+    defaultValues: getInitialValues()
   });
 
   const [loading,    setLoading]    = useState(false);
@@ -252,12 +266,12 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       if (j.company)       setValue('organization',    j.company,       { shouldDirty: true });
       if (j.location)      setValue('location',        j.location,      { shouldDirty: true });
       if (j.salary)        setValue('salary_range',    j.salary,        { shouldDirty: true });
-      if (j.description)   setValue('job_description', j.description,   { shouldDirty: true });
+      if (j.description)   setValue('description',     j.description,   { shouldDirty: true });
       if (j.applyLink)     setValue('apply_url',       j.applyLink,     { shouldDirty: true });
       if (j.qualification) setValue('qualification',   j.qualification, { shouldDirty: true });
-      if (j.positions)     setValue('vacancies',       j.positions,     { shouldDirty: true });
+      if (j.positions)     setValue('positions',       j.positions,     { shouldDirty: true });
       if (Array.isArray(j.skills) && j.skills.length > 0)
-                           setValue('tags',            j.skills,        { shouldDirty: true });
+                           setValue('skill_tags',      j.skills,        { shouldDirty: true });
       // Map category: AI returns 'Government' | 'Private' etc. → DB uses 'govt' | 'private'
       if (j.category) {
         const catMap = {
@@ -299,7 +313,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     // ── 12-second hard timeout — surfaces RLS / network errors fast ─
     const timeoutId = setTimeout(() => {
       setLoading(false);
-      setSaveError('Save timed out. This usually means an RLS policy issue. Please run migration 016 in Supabase SQL Editor and try again.');
+      setSaveError('Network timeout. Please check your connection or database status.');
     }, 12000);
 
     try {
@@ -307,12 +321,12 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
       if (isEdit) {
         const updated = await updateJob(job.id, data);
-        notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
-        toast.success('Job updated! ✨');
+        if (data.visible) notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
+        toast.success('Vacancy updated successfully');
       } else {
         const added = await addJob(data);
-        notifyJobOnWhatsApp(added || data, 'new');
-        toast.success('Job posted! 🚀');
+        if (data.visible) notifyJobOnWhatsApp(added || data, 'new');
+        toast.success('Vacancy posted successfully');
       }
 
       clearTimeout(timeoutId);
@@ -323,7 +337,6 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       console.error('[JobVacancyForm] Error:', err);
       const msg = err.message || 'Failed to save job. Please try again.';
       setSaveError(msg);
-      toast.error(msg);
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -506,12 +519,12 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
                 <InputField label="Salary Range" name="salary_range" icon={IndianRupee} register={register} placeholder="e.g. ₹12L - ₹18L PA" />
-                <InputField label="Positions" name="vacancies" icon={Users} register={register} placeholder="e.g. 5 (number only)" />
+                <InputField label="Positions" name="positions" icon={Users} register={register} placeholder="e.g. 5 (number only)" type="number" />
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
                 <InputField label="Age Limit" name="age_limit" icon={Users} register={register} placeholder="e.g. 18-35 years" />
               </div>
               
-              <TextareaField label="Job Description" name="job_description" icon={FileText} register={register} placeholder="Detailed job description..." />
+              <TextareaField label="Job Description" name="description" icon={FileText} register={register} placeholder="Detailed job description..." />
             </div>
 
             {/* Section: Application Info */}
@@ -531,7 +544,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
             {/* Section: Tags */}
             <Controller
-              name="tags" control={control}
+              name="skill_tags" control={control}
               render={({ field }) => (
                 <TagInput label="Skill Tags (Enter or Comma to add)" value={field.value} onChange={field.onChange} icon={TagIcon} placeholder="React, Node.js..." />
               )}
@@ -544,7 +557,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-secondary)' }}>Mark as Featured</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                <input type="checkbox" {...register('is_active')} style={{ width: '18px', height: '18px', accentColor: 'var(--green)' }} />
+                <input type="checkbox" {...register('visible')} style={{ width: '18px', height: '18px', accentColor: 'var(--green)' }} />
                 <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-secondary)' }}>Visible (Active)</span>
               </label>
             </div>
@@ -554,7 +567,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
         {/* Footer */}
         <div style={{ padding: '24px 32px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button type="button" onClick={() => reset(job || {})} style={{ padding: '10px 20px', borderRadius: '12px', background: 'var(--white-8)', border: 'none', color: 'var(--text-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button type="button" onClick={() => reset(getInitialValues())} style={{ padding: '10px 20px', borderRadius: '12px', background: 'var(--white-8)', border: 'none', color: 'var(--text-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <RotateCcw size={16} /> Reset
             </button>
             <button type="button" onClick={onClose} style={{ padding: '10px 20px', borderRadius: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>

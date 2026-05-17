@@ -560,15 +560,15 @@ export default function AdminPanel() {
                                   : <button className="action-btn" style={{ background: 'rgba(249,115,22,.1)', color: '#f97316', border: '1px solid rgba(249,115,22,.25)' }} onClick={() => confirmDel('Remove admin rights?', () => roleMut.mutate({ id: u.id, role: 'user' }))}>↓ Demote</button>
                               )}
 
-                              {/* Block/Unblock — admins can block users; only super_admin can block other admins */}
-                              {!isSelf && (isSuperAdmin || targetRole === 'user') && (
+                              {/* Block/Unblock — strictly super_admin only */}
+                              {!isSelf && isSuperAdmin && (
                                 u.is_blocked
                                   ? <button className="action-btn action-edit" disabled={blockMut.isPending} onClick={() => confirmDel('Unblock this user?', () => blockMut.mutate({ id: u.id, isBlocked: false }))}>✅ Unblock</button>
                                   : <button className="action-btn" style={{ background: 'rgba(234,179,8,.1)', color: '#eab308', border: '1px solid rgba(234,179,8,.25)' }} disabled={blockMut.isPending} onClick={() => confirmDel('Block this user?', () => blockMut.mutate({ id: u.id, isBlocked: true }))}>🚫 Block</button>
                               )}
 
-                              {/* Delete — admins can delete users; only super_admin can delete other admins */}
-                              {!isSelf && (isSuperAdmin || targetRole === 'user') && (
+                              {/* Delete — strictly super_admin only */}
+                              {!isSelf && isSuperAdmin && (
                                 <button className="action-btn action-del" disabled={delUserMut.isPending} onClick={() => confirmDel('⚠️ Permanently delete this user?', () => delUserMut.mutate(u.id))}>
                                   {delUserMut.isPending ? '...' : '🗑️ Delete'}
                                 </button>
