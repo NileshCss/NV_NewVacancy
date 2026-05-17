@@ -169,6 +169,38 @@ export const deleteJob = async (id) => {
   if (error) throw dbError(error)
 }
 
+// ── WHATSAPP EDGE FUNCTION ──────────────────────────────────────
+export const notifyJobOnWhatsApp = async (job, action = 'new') => {
+  console.log(`[notifyJobOnWhatsApp] Triggering WhatsApp Edge Function for job ${job.id}`)
+  
+  const { data, error } = await supabase.functions.invoke('whatsapp-notify', {
+    body: { action, vacancyData: job }
+  })
+  
+  if (error) {
+    console.error('[notifyJobOnWhatsApp] Edge Function Error:', error)
+    throw new Error(error.message || 'Failed to trigger WhatsApp notification')
+  }
+  
+  if (!data?.success) {
+    console.error('[notifyJobOnWhatsApp] WhatsApp API Error:', data?.error)
+    throw new Error(data?.error || 'Unknown WhatsApp API error')
+  }
+  
+  return data
+}
+
+export const testWhatsAppConnection = async () => {
+  const { data, error } = await supabase.functions.invoke('whatsapp-notify', {
+    body: { action: 'test' }
+  })
+  
+  if (error) throw new Error(error.message)
+  if (!data?.success) throw new Error(data?.error)
+  
+  return data
+}
+
 // ── NEWS ───────────────────────────────────────────────────────
 export const fetchNews = async () => {
   const { data, error } = await supabase

@@ -315,12 +315,38 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
       if (isEdit) {
         const updated = await updateJob(job.id, data);
-        if (data.visible) notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
-        toast.success('Vacancy updated successfully');
+        
+        let waError = null;
+        if (data.visible) {
+          try {
+            await notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
+          } catch (e) {
+            waError = e.message;
+          }
+        }
+        
+        if (waError) {
+          toast.error(`Job updated but WhatsApp notification failed: ${waError}`, { duration: 5000 });
+        } else {
+          toast.success('Vacancy updated successfully');
+        }
       } else {
         const added = await addJob(data);
-        if (data.visible) notifyJobOnWhatsApp(added || data, 'new');
-        toast.success('Vacancy posted successfully');
+        
+        let waError = null;
+        if (data.visible) {
+          try {
+            await notifyJobOnWhatsApp(added || data, 'new');
+          } catch (e) {
+            waError = e.message;
+          }
+        }
+        
+        if (waError) {
+          toast.error(`Job posted but WhatsApp notification failed: ${waError}`, { duration: 5000 });
+        } else {
+          toast.success('Vacancy posted successfully');
+        }
       }
 
       if (onSaved) onSaved();
