@@ -7,7 +7,6 @@
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path = public, auth
 AS $$

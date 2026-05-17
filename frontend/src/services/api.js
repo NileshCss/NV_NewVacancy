@@ -27,6 +27,7 @@ export const fetchJobs = async (category = null) => {
 }
 
 // Admin fetch — all jobs regardless of active status
+// Falls back to active-only if RLS blocks inactive jobs (pre-migration safety)
 export const fetchAllJobs = async (category = null) => {
   let query = supabase
     .from('jobs')
@@ -34,7 +35,19 @@ export const fetchAllJobs = async (category = null) => {
     .order('posted_at', { ascending: false })
   if (category) query = query.eq('category', category)
   const { data, error } = await query
-  if (error) throw dbError(error)
+  if (error) {
+    // RLS is blocking inactive jobs — fall back to public active-only fetch
+    console.warn('[fetchAllJobs] Full fetch blocked by RLS, falling back to active-only:', error.message)
+    let fallback = supabase
+      .from('jobs')
+      .select('*')
+      .eq('is_active', true)
+      .order('posted_at', { ascending: false })
+    if (category) fallback = fallback.eq('category', category)
+    const { data: fd, error: fe } = await fallback
+    if (fe) throw dbError(fe)
+    return fd ?? []
+  }
   return data ?? []
 }
 
@@ -208,7 +221,7 @@ export const deleteAffiliate = async (id) => {
 export const fetchUsers = async () => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role, avatar_url, is_blocked, created_at, updated_at')
+    .select('id, email, full_name, role, avatar_url, is_blocked, provider, profile_completed, created_at, updated_at')
     .order('created_at', { ascending: false })
   if (error) throw dbError(error)
 

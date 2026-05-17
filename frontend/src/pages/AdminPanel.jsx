@@ -497,7 +497,7 @@ export default function AdminPanel() {
             )}
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
               <table className="admin-table">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Provider</th><th>Profile</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
                 <tbody>
                   {users.map(u => {
                     const isSelf        = u.id === user?.id
@@ -517,6 +517,26 @@ export default function AdminPanel() {
                             targetRole === 'admin'       ? 'badge-blue' : 'badge-green'
                           }`} style={targetRole === 'super_admin' ? { background: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)' } : {}}>
                             {targetRole === 'super_admin' ? '👑 Super Admin' : targetRole}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+                            background: u.provider === 'google' ? '#FEF3C7' : '#EFF6FF',
+                            color: u.provider === 'google' ? '#92400E' : '#1E40AF',
+                            border: `1px solid ${u.provider === 'google' ? '#FDE68A' : '#BFDBFE'}`,
+                            fontWeight: '500',
+                          }}>
+                            {u.provider === 'google' ? '🔵 Google' : '📧 Email'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+                            background: u.profile_completed ? '#D1FAE5' : '#FEE2E2',
+                            color: u.profile_completed ? '#065F46' : '#991B1B',
+                          }}>
+                            {u.profile_completed ? '✓ Complete' : '⚠ Incomplete'}
                           </span>
                         </td>
                         <td>
@@ -559,7 +579,7 @@ export default function AdminPanel() {
                       </tr>
                     )
                   })}
-                  {users.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
+                  {users.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
                 </tbody>
               </table>
             </div>

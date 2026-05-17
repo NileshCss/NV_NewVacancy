@@ -48,22 +48,75 @@ export function AuthProvider({ children }) {
   const [loading,     setLoading]     = useState(!cache.get())
   const [initialized, setInitialized] = useState(false)
   const [savedJobs,   setSavedJobs]   = useState([])
+  const [showProfileCompletion, setShowProfileCompletion] = useState(false)
   const mountedRef = useRef(true)
 
-  // ── Fetch fresh profile from DB ────────────────────────
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) return null
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, role, avatar_url, is_blocked')
+        .select('id, email, full_name, role, avatar_url, is_blocked, provider, profile_completed')
         .eq('id', userId)
         .single()
-      if (error || !data) return null
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.warn('[Auth] Profile not found, creating fallback...');
+          return await createProfileFallback(userId);
+        }
+        return null;
+      }
+      
+      if (data && !data.profile_completed && data.provider === 'google') {
+        setShowProfileCompletion(true);
+      }
+      
       cache.set(data)
       return data
     } catch { return null }
   }, [])
+
+  // ── Fallback: create profile if trigger didn't fire ──
+  const createProfileFallback = useCallback(async (userId) => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return null;
+
+      const provider = authUser.app_metadata?.provider || 'email';
+      const newProfile = {
+        id: userId,
+        email: authUser.email,
+        full_name: authUser.user_metadata?.full_name 
+          || authUser.user_metadata?.name 
+          || authUser.email.split('@')[0],
+        avatar_url: authUser.user_metadata?.avatar_url 
+          || authUser.user_metadata?.picture 
+          || '',
+        role: 'user',
+        provider,
+        profile_completed: provider !== 'google',
+        is_active: true,
+      };
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([newProfile])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      if (!data.profile_completed && provider === 'google') {
+        setShowProfileCompletion(true);
+      }
+      cache.set(data);
+      return data;
+    } catch (err) {
+      console.error('[Auth] createProfileFallback error:', err.message);
+      return null;
+    }
+  }, []);
 
   // ── Fetch saved job IDs ────────────────────────────────
   const fetchSavedJobs = useCallback(async (userId) => {
@@ -146,7 +199,7 @@ export function AuthProvider({ children }) {
           if (mountedRef.current) { setProfile(p); fetchSavedJobs(session.user.id) }
         }
         if (event === 'SIGNED_OUT') {
-          setUser(null); setProfile(null); setSavedJobs([]); cache.clear()
+          setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false);
         }
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user)
@@ -211,7 +264,7 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
-      setUser(null); setProfile(null); setSavedJobs([]); cache.clear()
+      setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false);
       await supabase.auth.signOut()
     } catch (err) {
       console.error('[Auth] Sign out error:', err)
@@ -246,6 +299,34 @@ export function AuthProvider({ children }) {
       return { success: false, error: err.message }
     }
   }
+
+  // ── MARK PROFILE COMPLETE ─────────────────────────────────────────
+  const markProfileComplete = async (updates) => {
+    if (!user) return { success: false };
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          ...updates,
+          profile_completed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      cache.set(data);
+      if (mountedRef.current) {
+        setProfile(data);
+        setShowProfileCompletion(false);
+      }
+      return { success: true, data };
+    } catch (err) {
+      console.error('[Auth] markProfileComplete error:', err.message);
+      return { success: false, error: err.message };
+    }
+  };
 
   // ── REFRESH PROFILE ───────────────────────────────────────────────
   // Force-busts the cache and re-fetches from DB.
@@ -317,7 +398,8 @@ export function AuthProvider({ children }) {
   // ─────────────────────────────────────────────────────
   const value = {
     user, profile, loading, initialized, isAdmin, isSuperAdmin, effectiveRole,
-    savedJobs, displayName, avatarLetter,
+    savedJobs, displayName, avatarLetter, showProfileCompletion,
+    setShowProfileCompletion, markProfileComplete,
     signIn, signUp, signInWithGoogle, signOut,
     updateProfile, refreshProfile, toggleSave, resendVerification, forgotPassword,
   }

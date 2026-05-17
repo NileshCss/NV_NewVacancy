@@ -16,6 +16,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import SmartMatchPage   from './pages/SmartMatchPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import ProfileCompletionModal from './components/auth/ProfileCompletionModal'
 
 // Pages that don't show the Footer
 const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password'])
@@ -101,6 +102,7 @@ export default function App() {
       <NewsTicker />
       <main style={{ flex: 1 }}>{renderPage()}</main>
       {!NO_FOOTER_PAGES.has(page) && <Footer />}
+      <ProfileCompletionModal />
     </div>
   )
 }

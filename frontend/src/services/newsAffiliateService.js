@@ -293,8 +293,8 @@ export const getDashboardStats = async () => {
       usersCount,
     ] = await Promise.all([
       supabase.from('jobs').select('*', { count: 'exact', head: true }),
-      supabase.from('news_v2').select('*', { count: 'exact', head: true }),
-      supabase.from('affiliates_v2').select('*', { count: 'exact', head: true }),
+      supabase.from('news').select('*', { count: 'exact', head: true }),
+      supabase.from('affiliates').select('*', { count: 'exact', head: true }),
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
     ])
 
