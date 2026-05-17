@@ -49,6 +49,7 @@ export function AuthProvider({ children }) {
   const [initialized, setInitialized] = useState(false)
   const [savedJobs,   setSavedJobs]   = useState([])
   const [showProfileCompletion, setShowProfileCompletion] = useState(false)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
   const mountedRef = useRef(true)
 
   const fetchProfile = useCallback(async (userId) => {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }) {
           console.warn('[Auth] Profile not found, creating fallback...');
           return await createProfileFallback(userId);
         }
+        console.error('[Auth] Error fetching profile:', error);
         return null;
       }
       
@@ -199,7 +201,7 @@ export function AuthProvider({ children }) {
           if (mountedRef.current) { setProfile(p); fetchSavedJobs(session.user.id) }
         }
         if (event === 'SIGNED_OUT') {
-          setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false);
+          setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false); setIsEditingProfile(false);
         }
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user)
@@ -264,7 +266,7 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
-      setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false);
+      setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false); setIsEditingProfile(false);
       await supabase.auth.signOut()
     } catch (err) {
       console.error('[Auth] Sign out error:', err)
@@ -320,6 +322,7 @@ export function AuthProvider({ children }) {
       if (mountedRef.current) {
         setProfile(data);
         setShowProfileCompletion(false);
+        setIsEditingProfile(false);
       }
       return { success: true, data };
     } catch (err) {
@@ -400,6 +403,7 @@ export function AuthProvider({ children }) {
     user, profile, loading, initialized, isAdmin, isSuperAdmin, effectiveRole,
     savedJobs, displayName, avatarLetter, showProfileCompletion,
     setShowProfileCompletion, markProfileComplete,
+    isEditingProfile, setIsEditingProfile,
     signIn, signUp, signInWithGoogle, signOut,
     updateProfile, refreshProfile, toggleSave, resendVerification, forgotPassword,
   }

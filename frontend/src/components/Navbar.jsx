@@ -19,6 +19,7 @@ export default function Navbar() {
     displayName,
     avatarLetter,
     signOut,
+    setIsEditingProfile,
   } = useAuth()
 
   const { page, navigate } = useRouter()
@@ -205,6 +206,14 @@ export default function Navbar() {
                       }}>
                         {user.email}
                       </div>
+                    </div>
+
+                    {/* Edit Profile */}
+                    <div
+                      className="dropdown-item"
+                      onClick={() => { goTo(page); setIsEditingProfile(true); }}
+                    >
+                      ✏️ Edit Profile
                     </div>
 
                     {/* Saved Jobs */}
