@@ -4,7 +4,7 @@
  * so they don't hang when SELECT RLS policy is missing.
  */
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../../services/supabase'
+import { addJob, updateJob } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const DEFAULTS = {
@@ -152,50 +152,19 @@ export default function JobModal({ editJob, onClose, onSaved }) {
 
       if (isEdit) {
         // ── UPDATE ──
-        const res = await supabase
-          .from('jobs')
-          .update(payload)
-          .eq('id', editJob.id)
-          .select()
-          .single()
-        data = res.data
-        error = res.error
+        await updateJob(editJob.id, payload)
+        // Just fake a data object so onSaved can trigger UI update
+        data = { id: editJob.id, ...payload }
       } else {
         // ── INSERT ──
         payload.created_at = new Date().toISOString()
         payload.created_by = user?.id || null
         
-        const res = await supabase
-          .from('jobs')
-          .insert([payload])
-          .select()
-          .single()
-        data = res.data
-        error = res.error
-      }
-
-      // Always check error first
-      if (error) {
-        console.error('[JobModal] Supabase error:', error)
-        
-        const errorMessages = {
-          '23505': 'A job with this information already exists.',
-          '23502': 'A required field is missing. Check all fields.',
-          '23503': 'Invalid reference. Please check category or user.',
-          '42501': 'Permission denied. Make sure you are logged in as admin.',
-          'PGRST116': 'No rows returned. The job may not exist.',
-          'PGRST301': 'Database connection failed. Please try again.',
-        }
-
-        const userMessage = errorMessages[error.code] || error.message || 'Failed to save job.'
-        setError(userMessage)
-        setSaving(false)
-        clearTimeout(timeout)
-        return
+        await addJob(payload)
+        data = payload
       }
 
       console.log('[JobModal] Success:', data)
-
       // Notify parent to refresh job list
       if (typeof onSaved === 'function') onSaved(data)
       
@@ -204,7 +173,18 @@ export default function JobModal({ editJob, onClose, onSaved }) {
 
     } catch (err) {
       console.error('[JobModal] Unexpected error:', err)
-      setError(err.message || 'An unexpected error occurred. Please try again.')
+      
+      const errorMessages = {
+        '23505': 'A job with this information already exists.',
+        '23502': 'A required field is missing. Check all fields.',
+        '23503': 'Invalid reference. Please check category or user.',
+        '42501': 'Permission denied. Make sure you are logged in as admin.',
+        'PGRST116': 'No rows returned. The job may not exist.',
+        'PGRST301': 'Database connection failed. Please try again.',
+      }
+
+      const userMessage = (err.code ? errorMessages[err.code] : null) || err.message || 'An unexpected error occurred. Please try again.'
+      setError(userMessage)
     } finally {
       clearTimeout(timeout)
       setSaving(false)
