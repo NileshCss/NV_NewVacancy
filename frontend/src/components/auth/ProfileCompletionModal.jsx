@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../services/supabase';
 
 export default function ProfileCompletionModal() {
   const { user, profile, showProfileCompletion, isEditingProfile, markProfileComplete, setIsEditingProfile } = useAuth();
+  const toast = useToast();
 
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
@@ -59,32 +61,61 @@ export default function ProfileCompletionModal() {
     return Object.keys(errs).length === 0;
   };
 
+  const withTimeout = (promise, ms) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))
+    ]);
+  };
+
   const handleSaveProfile = async () => {
     if (!validateStep1()) return;
     setLoading(true);
+    setErrors({});
 
-    const updates = {
-      full_name: formData.full_name.trim(),
-      phone: formData.phone.trim(),
-      location: formData.location.trim(),
-    };
+    try {
+      const updates = {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim(),
+        location: formData.location.trim(),
+      };
 
-    const result = await markProfileComplete(updates);
-    if (!result.success) {
-      setErrors({ submit: result.error || 'Failed to save profile' });
-      setLoading(false);
-      return;
-    }
-
-    if (formData.newPassword && formData.newPassword === formData.confirmPassword) {
-      try {
-        const { error } = await supabase.auth.updateUser({ password: formData.newPassword });
-        if (error) console.error('[ProfileCompletion] Password update error:', error.message);
-      } catch (err) {
-        console.error('[ProfileCompletion] Password error:', err.message);
+      // Wrap in a timeout so it never gets stuck forever
+      const result = await withTimeout(markProfileComplete(updates), 15000);
+      
+      if (!result.success) {
+        setErrors({ submit: result.error || 'Failed to save profile' });
+        toast(result.error || 'Failed to save profile', 'error');
+        setLoading(false);
+        return;
       }
+
+      if (formData.newPassword && formData.newPassword === formData.confirmPassword) {
+        try {
+          const { error } = await withTimeout(supabase.auth.updateUser({ password: formData.newPassword }), 10000);
+          if (error) {
+            console.error('[ProfileCompletion] Password update error:', error.message);
+            toast(error.message, 'error');
+          } else {
+            toast('Profile and password updated successfully!', 'success');
+          }
+        } catch (err) {
+          console.error('[ProfileCompletion] Password timeout/error:', err.message);
+          toast('Password update failed or timed out', 'error');
+        }
+      } else {
+        toast('Profile updated successfully!', 'success');
+      }
+      
+      // Force close if it didn't unmount naturally
+      setIsEditingProfile(false);
+    } catch (err) {
+      console.error('[ProfileCompletion] Unexpected error:', err);
+      setErrors({ submit: err.message || 'An unexpected error occurred' });
+      toast('An unexpected error occurred', 'error');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSkip = async () => {
