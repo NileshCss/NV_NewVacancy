@@ -23,11 +23,14 @@ export const supabase = isSupabaseConfigured()
   : createClient('https://placeholder.supabase.co', 'placeholder-key')
 
 // Returns a fresh client instance to prevent stale state issues on repeated saves
-export const createFreshClient = () => {
+// Takes an explicit token to prevent async localStorage initialization delays causing RLS drops.
+export const createFreshClient = (accessToken) => {
+  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers },
     auth: {
-      autoRefreshToken:   true,
-      persistSession:     true,
+      persistSession: false, // Ephemeral client, don't overlap with global storage
+      autoRefreshToken: false,
     },
   })
 }

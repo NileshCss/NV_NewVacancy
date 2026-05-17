@@ -68,7 +68,8 @@ export const fetchJobsForAI = async (category = null) => {
 
 export const addJob = async (job) => {
   await ensureActiveSession()
-  const freshClient = createFreshClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
   
   const now = new Date().toISOString()
 
@@ -118,7 +119,8 @@ export const addJob = async (job) => {
 
 export const updateJob = async (id, job) => {
   await ensureActiveSession()
-  const freshClient = createFreshClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
   
   const payload = { updated_at: new Date().toISOString() }
 
