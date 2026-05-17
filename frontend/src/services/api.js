@@ -113,7 +113,6 @@ export const updateJob = async (id, job) => {
   if ('is_featured' in job) payload.is_featured = Boolean(job.is_featured)
   if ('is_active' in job) payload.is_active = Boolean(job.is_active)
   if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []
-  if ('experience_range' in job) payload.experience_range = job.experience_range || '0-1'
 
   console.log('[updateJob] id:', id, 'payload:', payload)
   const { error } = await supabase.from('jobs').update(payload).eq('id', id)

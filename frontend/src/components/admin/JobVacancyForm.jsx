@@ -459,9 +459,9 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
                 <InputField label="Salary Range" name="salary_range" icon={IndianRupee} register={register} placeholder="e.g. ₹12L - ₹18L PA" />
-                <InputField label="Positions" name="vacancies" icon={Users} register={register} placeholder="e.g. 5 or Not specified" />
-                <SelectField label="Experience" name="experience_range" icon={Clock} register={register} options={[{ label: 'Fresher (0-1 yr)', value: '0-1' }, { label: 'Junior (1-3 yrs)', value: '1-3' }, { label: 'Mid (3-5 yrs)', value: '3-5' }, { label: 'Senior (5+ yrs)', value: '5+' }]} />
+                <InputField label="Positions" name="vacancies" icon={Users} register={register} placeholder="e.g. 5 (number only)" />
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
+                <InputField label="Age Limit" name="age_limit" icon={Users} register={register} placeholder="e.g. 18-35 years" />
               </div>
             </div>
 
@@ -478,20 +478,6 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <InputField label="Apply URL" name="apply_url" icon={Globe} register={register} error={errors.apply_url} required placeholder="https://..." />
                 <InputField label="Last Date" name="last_date" icon={Calendar} type="date" register={register} />
               </div>
-            </div>
-
-            {/* Section: Description */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <label style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginLeft: '4px' }}>Full Job Description</label>
-              <textarea 
-                {...register('job_description')} rows={6} 
-                style={{
-                  width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)', 
-                  borderRadius: '16px', padding: '16px', color: 'var(--text-primary)', 
-                  fontSize: '14px', outline: 'none', resize: 'vertical', lineHeight: '1.6'
-                }}
-                placeholder="Describe role, responsibilities, eligibility..."
-              />
             </div>
 
             {/* Section: Tags */}
