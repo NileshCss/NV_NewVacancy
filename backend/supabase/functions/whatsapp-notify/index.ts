@@ -1,12 +1,15 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+// @ts-ignore - Deno URL imports are valid in Supabase Edge Functions
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+// @ts-ignore - Declare Deno globally to silence Node.js TS compiler errors
+declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -121,9 +124,9 @@ serve(async (req) => {
       status: 200,
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in whatsapp-notify function:', error)
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
+    return new Response(JSON.stringify({ success: false, error: error.message || String(error) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })
