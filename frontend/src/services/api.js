@@ -91,31 +91,28 @@ export const addJob = async (job) => {
 }
 
 export const updateJob = async (id, job) => {
-  // Full whitelist — matches all 22 confirmed columns in live Supabase DB
-  const payload = {
-    title:            String(job.title || '').trim(),
-    organization:     String(job.organization || '').trim(),
-    category:         job.category || 'govt',
-    department:       job.department        ? String(job.department).trim()        : '',
-    location:         String(job.location || 'All India').trim(),
-    state:            job.state             ? String(job.state).trim()             : null,
-    qualification:    job.qualification     ? String(job.qualification).trim()     : '',
-    vacancies:        job.vacancies         ? String(job.vacancies).trim()           : 'Not specified',
-    salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
-    age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
-    apply_url:        String(job.apply_url || '').trim(),
-    notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
-    last_date:        job.last_date         || null,
-    job_description:  String(job.job_description || '').trim(),
-    is_featured:      Boolean(job.is_featured ?? false),
-    is_active:        Boolean(job.is_active   ?? true),
-    tags:             Array.isArray(job.tags) ? job.tags : [],
-    experience_range: job.experience_range   || '0-1',
-    updated_at:       new Date().toISOString(),
-  }
+  const payload = { updated_at: new Date().toISOString() }
+  
+  if ('title' in job) payload.title = String(job.title || '').trim()
+  if ('organization' in job) payload.organization = String(job.organization || '').trim()
+  if ('category' in job) payload.category = job.category || 'govt'
+  if ('department' in job) payload.department = job.department ? String(job.department).trim() : ''
+  if ('location' in job) payload.location = String(job.location || 'All India').trim()
+  if ('state' in job) payload.state = job.state ? String(job.state).trim() : null
+  if ('qualification' in job) payload.qualification = job.qualification ? String(job.qualification).trim() : ''
+  if ('vacancies' in job) payload.vacancies = job.vacancies ? String(job.vacancies).trim() : 'Not specified'
+  if ('salary_range' in job) payload.salary_range = job.salary_range ? String(job.salary_range).trim() : null
+  if ('age_limit' in job) payload.age_limit = job.age_limit ? String(job.age_limit).trim() : null
+  if ('apply_url' in job) payload.apply_url = String(job.apply_url || '').trim()
+  if ('notification_url' in job) payload.notification_url = job.notification_url ? String(job.notification_url).trim() : null
+  if ('last_date' in job) payload.last_date = job.last_date || null
+  if ('job_description' in job) payload.job_description = String(job.job_description || '').trim()
+  if ('is_featured' in job) payload.is_featured = Boolean(job.is_featured)
+  if ('is_active' in job) payload.is_active = Boolean(job.is_active)
+  if ('tags' in job) payload.tags = Array.isArray(job.tags) ? job.tags : []
+  if ('experience_range' in job) payload.experience_range = job.experience_range || '0-1'
 
   console.log('[updateJob] id:', id, 'payload:', payload)
-  // No .select().single() — causes hang when SELECT RLS policy blocks read-back
   const { error } = await supabase.from('jobs').update(payload).eq('id', id)
   if (error) {
     console.error('[updateJob] Supabase error:', error)
@@ -302,55 +299,49 @@ export const triggerExpiryCheck = async () =>
 
 /**
  * Promote a user to 'admin' role.
- * Backend enforces: ONLY super_admin can call this.
  */
-export const promoteAdmin = async (userId) =>
-  adminFetch('/admin/promote', {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  })
+export const promoteAdmin = async (userId) => {
+  const { error } = await supabase.rpc('super_admin_promote_user', { target_user_id: userId })
+  if (error) throw dbError(error)
+  return { success: true }
+}
 
 /**
  * Demote an admin back to 'user'.
- * Backend enforces: ONLY super_admin can call this.
  */
-export const demoteAdmin = async (userId) =>
-  adminFetch('/admin/demote', {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  })
+export const demoteAdmin = async (userId) => {
+  const { error } = await supabase.rpc('super_admin_demote_user', { target_user_id: userId })
+  if (error) throw dbError(error)
+  return { success: true }
+}
 
 /**
  * Block or unblock a user.
- * Routes through backend so service-role is used — more reliable than direct Supabase.
  */
-export const blockUser = async (userId, isBlocked) =>
-  adminFetch('/admin/block', {
-    method: 'POST',
-    body: JSON.stringify({ userId, isBlocked }),
-  })
+export const blockUser = async (userId, isBlocked) => {
+  const { error } = await supabase.rpc('admin_block_user', { target_user_id: userId, set_is_blocked: isBlocked })
+  if (error) throw dbError(error)
+  return { success: true }
+}
 
 /**
- * Permanently delete a user — calls backend which uses auth.admin.deleteUser.
- * This removes the user from auth.users AND cascades to profiles + all related data.
- * Only using profiles.delete() was leaving the user in auth.users (still able to re-login).
+ * Permanently delete a user.
  */
-export const deleteUser = async (userId) =>
-  adminFetch('/admin/delete-user', {
-    method: 'DELETE',
-    body: JSON.stringify({ userId }),
-  })
+export const deleteUser = async (userId) => {
+  const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId })
+  if (error) throw dbError(error)
+  return { success: true }
+}
 
 /**
- * Update user role — routes through backend (promote/demote endpoints).
- * Only super_admin can change roles; enforced on both frontend + backend.
+ * Update user role.
  */
 export const updateRole = async (userId, role) => {
-  const endpoint = role === 'admin' ? '/admin/promote' : '/admin/demote'
-  return adminFetch(endpoint, {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  })
+  if (role === 'admin') {
+    return promoteAdmin(userId)
+  } else {
+    return demoteAdmin(userId)
+  }
 }
 
 // ── ADMIN STATS ────────────────────────────────────────────────
