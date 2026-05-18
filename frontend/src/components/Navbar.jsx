@@ -28,6 +28,16 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [dropOpen,   setDropOpen]   = useState(false)
   const dropRef = useRef(null)
+  const [scrolled, setScrolled] = useState(false)
+
+  // ── Add shadow on scroll ───────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // ── Close dropdown on outside click ─────────────────
   useEffect(() => {
@@ -62,7 +72,7 @@ export default function Navbar() {
   }
 
   return (
-    <header className="navbar">
+    <header className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="container">
         <nav className="nav-inner">
 

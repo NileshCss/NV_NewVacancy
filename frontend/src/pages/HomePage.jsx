@@ -152,7 +152,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="jobs-grid">
-                  {featuredJobs.map(j => <JobCard key={j.id} job={j} onApplyClick={handleApplyClick} />)}
+                  {featuredJobs.map((j, index) => <JobCard key={j.id} job={j} onApplyClick={handleApplyClick} style={{ '--card-index': index }} />)}
                 </div>
               )}
             </div>
@@ -181,7 +181,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="news-grid">
-                  {featuredNews.map(a => <NewsCard key={a.id} article={a} />)}
+                  {featuredNews.map((a, index) => <NewsCard key={a.id} article={a} style={{ '--card-index': index }} />)}
                 </div>
               )}
             </div>

@@ -23,10 +23,40 @@ export default function NewsPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ background: 'var(--bg-surface)' }}>
-        <div className="container">
-          <h1 style={{ color: 'var(--text-primary)' }}>📰 Latest News</h1>
-          <div className="page-header p" style={{ color: 'var(--text-secondary)' }}>Tech, Govt & Education updates for job seekers</div>
+      <div className="page-header" style={{ background: 'var(--bg-surface)', position: 'relative', overflow: 'hidden' }}>
+        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
+          <div style={{ flex: 1, maxWidth: '60%' }}>
+            <h1 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              📰 Latest News
+            </h1>
+            <div className="page-header p" style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+              Tech, Govt & Education updates for job seekers
+            </div>
+            <div className="job-count-tag" style={{ color: 'var(--brand)', fontSize: '1rem', fontWeight: '700' }}>
+              {filtered.length} articles
+            </div>
+          </div>
+          
+          {/* Illustration SVG */}
+          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '280px', opacity: 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg viewBox="0 0 280 200" width="280" height="200" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}>
+              {/* Newspaper pages */}
+              <g>
+                <rect x="20" y="30" width="100" height="140" fill="var(--text-muted)" opacity="0.6" rx="4" />
+                <rect x="30" y="40" width="80" height="8" fill="var(--brand)" opacity="0.9" />
+                <rect x="30" y="55" width="80" height="4" fill="var(--text-muted)" opacity="0.5" />
+                <rect x="30" y="62" width="80" height="4" fill="var(--text-muted)" opacity="0.5" />
+                <rect x="30" y="75" width="35" height="50" fill="var(--brand)" opacity="0.7" />
+                <rect x="70" y="75" width="40" height="50" fill="var(--text-muted)" opacity="0.4" />
+                <rect x="30" y="135" width="80" height="3" fill="var(--text-muted)" opacity="0.4" />
+                
+                <rect x="140" y="50" width="100" height="120" fill="var(--text-muted)" opacity="0.5" rx="4" />
+                <rect x="150" y="60" width="80" height="6" fill="var(--brand)" opacity="0.8" />
+                <rect x="150" y="72" width="80" height="3" fill="var(--text-muted)" opacity="0.4" />
+                <rect x="150" y="80" width="80" height="60" fill="var(--text-muted)" opacity="0.3" />
+              </g>
+            </svg>
+          </div>
         </div>
       </div>
       <div className="container section">

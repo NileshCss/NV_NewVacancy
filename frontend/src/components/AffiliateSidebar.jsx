@@ -32,8 +32,8 @@ export default function AffiliateSidebar() {
         </div>
       ) : items.length === 0 ? null : (
         <div className="aff-sidebar-grid">
-          {items.map(aff => (
-            <div key={aff.id} className="aff-banner" style={{ background: 'var(--bg-card)' }} onClick={() => handleClick(aff)}>
+          {items.map((aff, index) => (
+            <div key={aff.id} className="aff-banner" style={{ background: 'var(--bg-card)', '--card-index': index }} onClick={() => handleClick(aff)}>
               <div className="aff-ad-label">Ad</div>
               <div className="aff-body">
                 <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>{aff.emoji || '💼'}</div>
