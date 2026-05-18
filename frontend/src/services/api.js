@@ -85,6 +85,7 @@ export const addJob = async (job) => {
     location:         String(job.location || 'All India').trim(),
     state:            job.state             ? String(job.state).trim()             : null,
     qualification:    job.qualification     ? String(job.qualification).trim()     : null,
+    experience:       job.experience        ? String(job.experience).trim()        : null,
     vacancies:        !isNaN(vacanciesInt) ? vacanciesInt : null,
     salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
     age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
@@ -131,6 +132,7 @@ export const updateJob = async (id, job) => {
   if ('location' in job) payload.location = String(job.location || 'All India').trim()
   if ('state' in job) payload.state = job.state ? String(job.state).trim() : null
   if ('qualification' in job) payload.qualification = job.qualification ? String(job.qualification).trim() : null
+  if ('experience' in job) payload.experience = job.experience ? String(job.experience).trim() : null
   
   if ('positions' in job || 'vacancies' in job) {
     const v = parseInt(String(job.positions || job.vacancies || '').replace(/[^0-9]/g, ''), 10)

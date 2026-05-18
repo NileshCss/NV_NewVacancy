@@ -196,7 +196,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     title: '', organization: '', location: 'All India',
     salary_range: 'Not Disclosed', apply_url: '', description: '',
     category: 'govt', is_featured: false, visible: true,
-    skill_tags: [], positions: '', qualification: '', age_limit: '', last_date: ''
+    skill_tags: [], positions: '', qualification: '', age_limit: '', experience: '', last_date: ''
   };
 
   const getInitialValues = () => {
@@ -207,7 +207,8 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       positions: job?.vacancies || job?.positions || '',
       visible: job?.is_active ?? job?.visible ?? true,
       description: job?.job_description || job?.description || '',
-      salary_range: job?.salary_range || 'Not Disclosed'
+      salary_range: job?.salary_range || 'Not Disclosed',
+      experience: job?.experience || ''
     };
   };
 
@@ -351,16 +352,25 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
       if (onSaved) onSaved();
       reset(DEFAULT_VALUES); // Fully reset the form state for the next use
-      onClose();
+      // Ensure modal closes even if there's a warning
+      setTimeout(() => onClose(), 500);
     } catch (err) {
       console.error('[JobVacancyForm] Error:', err);
       // If it was an AbortError from our API timeout, format it nicely
       const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
-      const msg = isTimeout 
-        ? 'Database connection timed out. Please check your network or Supabase status.' 
-        : (err.message || 'Failed to save job. Please try again.');
+      const isRLS = err.message?.includes('[42501]') || err.message?.includes('RLS');
+      let msg = '';
+      
+      if (isTimeout) {
+        msg = 'Database connection timed out. Please check your network or Supabase status.';
+      } else if (isRLS) {
+        msg = 'Permission denied: Your account does not have permission to post jobs. Please contact an administrator or ensure your role is set to Admin.';
+      } else {
+        msg = err.message || 'Failed to save job. Please try again.';
+      }
       
       setSaveError(msg);
+      console.error('[JobVacancyForm] Full error details:', { isTimeout, isRLS, originalError: err.message, code: err.code });
     } finally {
       setLoading(false);
     }
@@ -544,6 +554,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <InputField label="Salary Range" name="salary_range" icon={IndianRupee} register={register} placeholder="e.g. ₹12L - ₹18L PA" />
                 <InputField label="Positions" name="positions" icon={Users} register={register} placeholder="e.g. 5 (number only)" type="number" />
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
+                <InputField label="Experience" name="experience" icon={Clock} register={register} placeholder="e.g. 2-5 years" />
                 <InputField label="Age Limit" name="age_limit" icon={Users} register={register} placeholder="e.g. 18-35 years" />
               </div>
               
