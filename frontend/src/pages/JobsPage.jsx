@@ -48,43 +48,11 @@ export default function JobsPage({ category }) {
 
   return (
     <div>
-      <div className="page-header" style={{ background: 'var(--bg-surface)', position: 'relative', overflow: 'hidden' }}>
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
-          <div style={{ flex: 1, maxWidth: '60%' }}>
-            <h1 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              {isGovt ? '🏛️' : '💼'} {isGovt ? 'Government Jobs' : 'Private Jobs'}
-            </h1>
-            <div className="page-header p" style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              {isGovt ? 'Latest SSC, UPSC, Railway, Banking & State Govt vacancies all in one place.' : 'Top IT, Finance, Marketing & corporate openings in India'}
-            </div>
-            <div className="job-count-tag" style={{ color: 'var(--brand)', fontSize: '1rem', fontWeight: '700' }}>
-              {filtered.length} jobs found
-            </div>
-          </div>
-          
-          {/* Illustration SVG */}
-          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '300px', opacity: 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 300 200" width="300" height="200" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}>
-              {/* Buildings */}
-              <rect x="20" y="80" width="40" height="100" fill="var(--text-muted)" opacity="0.6" />
-              <rect x="70" y="60" width="45" height="120" fill="var(--text-muted)" opacity="0.7" />
-              <rect x="125" y="50" width="50" height="130" fill="var(--brand)" opacity="0.8" />
-              <rect x="185" y="70" width="40" height="110" fill="var(--text-muted)" opacity="0.6" />
-              <rect x="235" y="85" width="35" height="95" fill="var(--text-muted)" opacity="0.5" />
-              
-              {/* Windows */}
-              <g fill="rgba(255,255,255,0.2)">
-                <rect x="28" y="90" width="6" height="6" />
-                <rect x="38" y="90" width="6" height="6" />
-                <rect x="28" y="105" width="6" height="6" />
-                <rect x="38" y="105" width="6" height="6" />
-                <rect x="28" y="120" width="6" height="6" />
-                <rect x="38" y="120" width="6" height="6" />
-                <rect x="28" y="145" width="6" height="6" />
-                <rect x="38" y="145" width="6" height="6" />
-              </g>
-            </svg>
-          </div>
+      <div className="page-header" style={{ background: 'var(--bg-surface)' }}>
+        <div className="container">
+          <h1 style={{ color: 'var(--text-primary)' }}>{isGovt ? '🏛️' : '💼'} {isGovt ? 'Government Jobs' : 'Private Jobs'}</h1>
+          <div className="page-header p" style={{ color: 'var(--text-secondary)' }}>{isGovt ? 'Latest SSC, UPSC, Railway, Banking & State Govt vacancies' : 'Top IT, Finance, Marketing & corporate openings in India'}</div>
+          <div className="job-count-tag" style={{ color: 'var(--brand)' }}>{filtered.length} jobs found</div>
         </div>
       </div>
 

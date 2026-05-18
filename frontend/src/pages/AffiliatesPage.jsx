@@ -25,39 +25,10 @@ export default function AffiliatesPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ background: 'var(--bg-surface)', position: 'relative', overflow: 'hidden' }}>
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
-          <div style={{ flex: 1, maxWidth: '60%' }}>
-            <h1 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              🎁 Exclusive Offers
-            </h1>
-            <div className="page-header p" style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              Handpicked deals on exam prep, courses, and job tools curated for you.
-            </div>
-            <div className="job-count-tag" style={{ color: 'var(--brand)', fontSize: '1rem', fontWeight: '700' }}>
-              {items.length} offers
-            </div>
-          </div>
-          
-          {/* Illustration SVG */}
-          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '300px', opacity: 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 300 200" width="300" height="200" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}>
-              {/* Gift boxes and deals */}
-              <g>
-                <rect x="30" y="50" width="60" height="60" fill="var(--brand)" opacity="0.8" rx="4" />
-                <rect x="50" y="30" width="20" height="90" fill="var(--brand)" opacity="0.6" />
-                <path d="M40 70 L80 70" stroke="var(--text-muted)" strokeWidth="3" opacity="0.9" />
-                
-                <rect x="120" y="60" width="55" height="55" fill="var(--brand)" opacity="0.6" rx="4" />
-                <rect x="137" y="42" width="21" height="91" fill="var(--brand)" opacity="0.5" />
-                <path d="M128 87 L175 87" stroke="var(--text-muted)" strokeWidth="2" opacity="0.8" />
-                
-                <rect x="200" y="70" width="50" height="50" fill="var(--brand)" opacity="0.7" rx="4" />
-                <rect x="215" y="55" width="18" height="80" fill="var(--brand)" opacity="0.5" />
-                <path d="M208 95 L242 95" stroke="var(--text-muted)" strokeWidth="2" opacity="0.9" />
-              </g>
-            </svg>
-          </div>
+      <div className="page-header" style={{ background: 'linear-gradient(135deg,rgba(249,115,22,.08) 0%,var(--bg-base) 100%)' }}>
+        <div className="container">
+          <h1 style={{ color: 'var(--text-primary)' }}>🎁 Exclusive Offers</h1>
+          <div className="page-header p" style={{ color: 'var(--text-secondary)' }}>Handpicked deals on exam prep, courses, and job tools</div>
         </div>
       </div>
       <div className="container section">
