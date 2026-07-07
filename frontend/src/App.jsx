@@ -17,6 +17,11 @@ import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import SmartMatchPage   from './pages/SmartMatchPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ProfileCompletionModal from './components/auth/ProfileCompletionModal'
+import WalkinsPage        from './pages/WalkinsPage'
+import InternshipsPage    from './pages/InternshipsPage'
+import CompanyDirectoryPage from './pages/CompanyDirectoryPage'
+import AssistantPage      from './pages/AssistantPage'
+import JobDetailPage      from './pages/JobDetailPage'
 
 // Pages that don't show the Footer
 const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password'])
@@ -83,6 +88,10 @@ export default function App() {
       case 'home':          return <HomePage />
       case 'govt-jobs':     return <JobsPage category="govt" />
       case 'private-jobs':  return <JobsPage category="private" />
+      case 'internships':   return <InternshipsPage />
+      case 'walk-ins':      return <WalkinsPage />
+      case 'companies':     return <CompanyDirectoryPage />
+      case 'assistant':     return <AssistantPage />
       case 'news':          return <NewsPage />
       case 'affiliates':    return <AffiliatesPage />
       case 'login':         return <LoginPage />
@@ -92,7 +101,9 @@ export default function App() {
       case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback': return <AuthCallbackPage />
       case 'reset-password': return <ResetPasswordPage />
-      default:              return <HomePage />
+      default: 
+        if (page.startsWith('jobs/')) return <JobDetailPage />
+        return <HomePage />
     }
   }
 
