@@ -153,7 +153,7 @@ export const updateJob = async (id, job) => {
   console.log('[updateJob] id:', id, 'payload:', payload)
   
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  const timeoutId = setTimeout(() => controller.abort(), 30000)  // 30s — updates can be slower
   
   try {
     const { data, error } = await freshClient.from('jobs').update(payload).eq('id', id).select().single().abortSignal(controller.signal)
@@ -332,8 +332,20 @@ export const scrapeJobPreview = async (url) => {
   const token = session?.access_token
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
+  // Warn clearly when no backend URL is configured (production with no deployed backend)
+  const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1')
+  const isProduction = !window?.location?.hostname?.includes('localhost') && !window?.location?.hostname?.includes('127.0.0.1')
+  if (isLocalhost && isProduction) {
+    return {
+      ok: false,
+      success: false,
+      error: 'Backend API is not configured for production. Set VITE_API_URL in your Vercel/hosting environment variables to point to your deployed backend.',
+      code: 'BACKEND_NOT_CONFIGURED',
+    }
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for slow AI extraction
 
   try {
     const res = await fetch(`${apiBase}/admin/scrape-job`, {
@@ -347,10 +359,14 @@ export const scrapeJobPreview = async (url) => {
     })
 
     const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      // Surface the actual error from the backend response
+      console.error('[scrapeJobPreview] Backend error:', res.status, json)
+    }
     return { ok: res.ok, status: res.status, ...json }
   } catch (err) {
     if (err.name === 'AbortError') {
-      return { ok: false, success: false, error: 'Extraction timed out after 20 seconds. Please try again or fill manually.' }
+      return { ok: false, success: false, error: 'Extraction timed out after 30 seconds. The backend may be offline or the target site is slow. Try again or fill manually.', code: 'TIMEOUT' }
     }
     throw err;
   } finally {

@@ -67,13 +67,52 @@ async function scrapeJobPreview(req, res) {
     }
 
     if (!scrapeResult.success) {
+      // Surface specific blocking/timeout codes to the frontend
+      const code = scrapeResult.error?.includes('blocking') || scrapeResult.error?.includes('forbidden')
+        ? 'SCRAPE_BLOCKED'
+        : scrapeResult.error?.includes('timed out') || scrapeResult.error?.includes('timeout')
+          ? 'SCRAPE_TIMEOUT'
+          : 'SCRAPE_FAILED';
       return res.status(422).json({
-        success: false, error: scrapeResult.error, code: 'SCRAPE_FAILED',
+        success: false, error: scrapeResult.error, code,
       });
     }
 
+    // Detect JS-rendered pages: scraped content is too short to extract from
+    const contentLength = scrapeResult.content?.trim().length || 0;
+    if (contentLength < 200) {
+      console.warn(`[ScraperCtrl] Content too short (${contentLength} chars) — likely JS-rendered page: ${url.trim()}`);
+      // Don't hard-fail — try AI anyway, it may still extract the URL domain info
+    }
+
     // Step 2: AI Extract
-    const jobData = await extractJobData(scrapeResult.content, url.trim());
+    let jobData;
+    try {
+      jobData = await extractJobData(scrapeResult.content, url.trim());
+    } catch (aiErr) {
+      console.error('[ScraperCtrl] AI extraction failed:', aiErr.message);
+      return res.status(503).json({
+        success: false,
+        error: 'AI extraction service is unavailable. Check that Groq API key is set or Ollama is running.',
+        code: 'AI_UNAVAILABLE',
+      });
+    }
+
+    // Detect JS-rendered page by confidence + content length
+    if (contentLength < 200 || (jobData.confidence === 0 && contentLength < 500)) {
+      return res.json({
+        success: true,
+        data:    jobData,
+        code:    'JS_RENDERED_PAGE',
+        meta: {
+          url:              url.trim(),
+          processingTimeMs: Date.now() - start,
+          confidence:       jobData.confidence,
+          scrapedAt:        new Date().toISOString(),
+          warning:          'Page content appears to be JavaScript-rendered. Extraction confidence is low.',
+        },
+      });
+    }
 
     if (jobData.isExpired) {
       return res.status(410).json({
@@ -97,9 +136,9 @@ async function scrapeJobPreview(req, res) {
     });
 
   } catch (err) {
-    console.error('[ScraperCtrl] scrapeJobPreview error:', err);
+    console.error('[ScraperCtrl] scrapeJobPreview error:', err.message, err.stack);
     return res.status(500).json({
-      success: false, error: 'Internal server error', code: 'INTERNAL_ERROR',
+      success: false, error: `Server error: ${err.message}`, code: 'INTERNAL_ERROR',
     });
   }
 }

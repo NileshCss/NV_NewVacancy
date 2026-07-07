@@ -201,14 +201,26 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
   const getInitialValues = () => {
     if (!isEdit) return DEFAULT_VALUES;
+    // IMPORTANT: map DB column names → form field names here.
+    // Do NOT call reset(job) directly anywhere — it bypasses this mapping.
     return {
-      ...job, 
-      skill_tags: job?.tags || job?.skill_tags || [], 
-      positions: job?.vacancies || job?.positions || '',
-      visible: job?.is_active ?? job?.visible ?? true,
-      description: job?.job_description || job?.description || '',
-      salary_range: job?.salary_range || 'Not Disclosed',
-      experience: job?.experience || ''
+      title:            job?.title            || '',
+      organization:     job?.organization     || '',
+      location:         job?.location         || 'All India',
+      salary_range:     job?.salary_range     || 'Not Disclosed',
+      apply_url:        job?.apply_url        || '',
+      description:      job?.job_description  || job?.description || '',
+      category:         job?.category         || 'govt',
+      is_featured:      Boolean(job?.is_featured ?? false),
+      visible:          Boolean(job?.is_active ?? job?.visible ?? true),
+      skill_tags:       Array.isArray(job?.tags || job?.skill_tags) ? (job.tags || job.skill_tags) : [],
+      positions:        String(job?.vacancies  || job?.positions || ''),
+      qualification:    job?.qualification    || '',
+      age_limit:        job?.age_limit        || '',
+      experience:       job?.experience       || '',
+      last_date:        job?.last_date        || '',
+      department:       job?.department       || '',
+      notification_url: job?.notification_url || '',
     };
   };
 
@@ -224,7 +236,8 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
   const [extracting, setExtracting] = useState(false);
   const [extractMsg, setExtractMsg] = useState(null); // { type: 'success'|'warn'|'error', text }
 
-  useEffect(() => { if (job) reset(job); }, [job, reset]);
+  // NOTE: Do NOT reset(job) here — getInitialValues() already maps DB→form fields correctly.
+  // Calling reset(job) directly would bypass that mapping and break field names.
 
   // ── Extract job details from URL ─────────────────────────────────────────
   const extractFromUrl = async () => {
@@ -243,24 +256,37 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     try {
       const result = await scrapeJobPreview(jobUrl.trim());
 
-      // Expired job detected
-      if (result.status === 410 || result.code === 'JOB_EXPIRED' || result.code === 'URL_EXPIRED') {
-        setExtractMsg({
-          type: 'error',
-          text: `⚠️ This job link is expired or closed. You cannot add an expired vacancy.`,
-        });
+      // Backend not reachable / not configured
+      if (!result && result === undefined) {
+        setExtractMsg({ type: 'error', text: 'Backend API is not reachable. Make sure the backend server is running.' });
         return;
       }
 
-      if (!result.success || !result.data) {
-        setExtractMsg({
-          type: 'error',
-          text: result.error || 'Failed to extract job details. Try a different URL.',
-        });
+      // Specific error codes from backend
+      if (result.code === 'JOB_EXPIRED' || result.code === 'URL_EXPIRED' || result.status === 410) {
+        setExtractMsg({ type: 'error', text: '⚠️ This job link is expired or closed. You cannot add an expired vacancy.' });
+        return;
+      }
+      if (result.code === 'SCRAPE_BLOCKED') {
+        setExtractMsg({ type: 'error', text: '🚫 This site blocks automated access. Please fill the details manually.' });
+        return;
+      }
+      if (result.code === 'JS_RENDERED_PAGE') {
+        setExtractMsg({ type: 'warn', text: '⚠️ This page requires JavaScript to load — extraction is partial. Please verify all fields.' });
+        // Still try to fill what we got
+      } else if (result.code === 'SCRAPE_TIMEOUT') {
+        setExtractMsg({ type: 'error', text: '⏱️ The target site took too long to respond. Try again or fill manually.' });
+        return;
+      } else if (!result.success && !result.data) {
+        setExtractMsg({ type: 'error', text: result.error || 'Failed to extract job details. Try a different URL.' });
         return;
       }
 
       const j = result.data;
+      if (!j) {
+        setExtractMsg({ type: 'error', text: 'No data returned from extraction. Try a different URL.' });
+        return;
+      }
 
       // Map AI fields → react-hook-form field names (matching addJob/updateJob payload)
       if (j.jobTitle)      setValue('title',           j.jobTitle,      { shouldDirty: true });
@@ -270,7 +296,9 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
       if (j.description)   setValue('description',     j.description,   { shouldDirty: true });
       if (j.applyLink)     setValue('apply_url',       j.applyLink,     { shouldDirty: true });
       if (j.qualification) setValue('qualification',   j.qualification, { shouldDirty: true });
-      if (j.positions)     setValue('positions',       j.positions,     { shouldDirty: true });
+      if (j.deadline)      setValue('last_date',       j.deadline,      { shouldDirty: true });
+      if (j.batch)         setValue('experience',      j.batch,         { shouldDirty: true });
+      if (j.vacancies)     setValue('positions',       String(j.vacancies), { shouldDirty: true });
       if (Array.isArray(j.skills) && j.skills.length > 0)
                            setValue('skill_tags',      j.skills,        { shouldDirty: true });
       // Map category: AI returns 'Government' | 'Private' etc. → DB uses 'govt' | 'private'
@@ -281,27 +309,27 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
           Private: 'private', IT: 'private', Engineering: 'private',
           Healthcare: 'private', Other: 'private',
         };
-        setValue('category', catMap[j.category] ?? 'govt', { shouldDirty: true });
+        setValue('category', catMap[j.category] ?? 'private', { shouldDirty: true });
       }
 
       const confidence = j.confidence ?? 0;
-      if (confidence < 50) {
-        setExtractMsg({
-          type: 'warn',
-          text: `⚠️ Low confidence (${confidence}%). Fields auto-filled but please verify carefully.`,
-        });
+      if (confidence === 0) {
+        setExtractMsg({ type: 'warn', text: '⚠️ Could not extract details from this page (site may require login or JavaScript). Please fill the fields manually.' });
+      } else if (confidence < 50) {
+        setExtractMsg({ type: 'warn', text: `⚠️ Low confidence (${confidence}%). Fields auto-filled — please verify carefully.` });
       } else {
-        setExtractMsg({
-          type: 'success',
-          text: `✓ Details extracted (confidence: ${confidence}%). Review below and click Post Vacancy.`,
-        });
+        setExtractMsg({ type: 'success', text: `✓ Details extracted (confidence: ${confidence}%). Review below and click Post Vacancy.` });
       }
     } catch (err) {
       console.error('[JobVacancyForm] extractFromUrl error:', err);
-      setExtractMsg({
-        type: 'error',
-        text: 'Network error. Please check your connection and try again.',
-      });
+      // Distinguish between network errors and other failures
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        setExtractMsg({ type: 'error', text: '⏱️ Extraction timed out (20s). The backend may be offline or the target site is slow.' });
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError') || err.message?.includes('ECONNREFUSED')) {
+        setExtractMsg({ type: 'error', text: '🔌 Cannot reach the backend server. Make sure the server is running on port 5000, or VITE_API_URL is set correctly.' });
+      } else {
+        setExtractMsg({ type: 'error', text: `Extraction failed: ${err.message}` });
+      }
     } finally {
       setExtracting(false);
     }
