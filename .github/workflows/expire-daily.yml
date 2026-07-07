@@ -1,0 +1,26 @@
+name: Daily Expire Jobs
+
+on:
+  schedule:
+    # 2:00 AM IST = 20:30 UTC previous day
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger expire check via API
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.BACKEND_SERVICE_TOKEN }}" \
+            "${{ secrets.BACKEND_URL }}/api/admin/run-expire")
+          echo "Response status: $RESPONSE"
+          if [ "$RESPONSE" -lt 200 ] || [ "$RESPONSE" -ge 300 ]; then
+            echo "❌ Expire trigger failed with status $RESPONSE"
+            exit 1
+          fi
+          echo "✅ Daily expire check complete"

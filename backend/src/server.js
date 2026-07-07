@@ -12,8 +12,17 @@ const smartmatchRoutes = require('./routes/smartmatch.routes');
 const adminRoutes      = require('./routes/admin.routes');
 const whatsappRoutes   = require('./routes/whatsapp.routes');
 const scraperRoutes    = require('./routes/scraper.routes');
+const jobsRoutes       = require('./routes/jobs.routes');
+const walkinsRoutes    = require('./routes/walkins.routes');
+const searchRoutes     = require('./routes/search.routes');
+const assistantRoutes  = require('./routes/assistant.routes');
+const sitemapRoutes    = require('./routes/sitemap');
 const whatsappService  = require('./services/whatsappService');
-const { startExpiryJob } = require('./jobs/expiryJob');
+const { startExpiryJob }          = require('./jobs/expiryJob');
+const { startScrapeJob }          = require('./cron/scrapeScheduler');
+const { startExpireJobsCron }     = require('./cron/expireJobs');
+const { startDailyDigestCron }    = require('./cron/dailyDigest');
+const { startWeeklyDigestCron }   = require('./cron/weeklyDigest');
 const logger           = require('./utils/logger');
 
 const app  = express();
@@ -50,6 +59,11 @@ app.use('/api/smartmatch', smartmatchRoutes);
 app.use('/api/admin',      adminRoutes);
 app.use('/api/admin',      scraperRoutes);   // scrape-job, scrape-and-save, trigger-expiry-check
 app.use('/api/whatsapp',   whatsappRoutes);
+app.use('/api/jobs',       jobsRoutes);
+app.use('/api/walkins',    walkinsRoutes);
+app.use('/api/search',     searchRoutes);
+app.use('/api/assistant',  assistantRoutes);
+app.use('/',               sitemapRoutes);   // /sitemap.xml, /robots.txt
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -96,8 +110,12 @@ async function startServer() {
     console.log(`\n🚀  NewVacancy API  →  http://localhost:${PORT}`);
     console.log(`📱  WhatsApp: ${process.env.WHATSAPP_ENABLED === 'true' ? 'initialising…' : 'disabled'}\n`);
 
-    // Start nightly expiry checker cron (2:00 AM IST)
-    startExpiryJob();
+    // Start all cron jobs
+    startExpiryJob();           // legacy nightly expiry (keeps backward compat)
+    startExpireJobsCron();      // new enhanced expiry cron
+    startScrapeJob();           // hourly auto-scraper
+    startDailyDigestCron();     // 8 AM IST daily digest
+    startWeeklyDigestCron();    // Monday 9 AM IST weekly digest
   });
 }
 

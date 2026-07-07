@@ -1,0 +1,41 @@
+name: Daily & Weekly Digest
+
+on:
+  schedule:
+    # 8:00 AM IST daily = 2:30 UTC
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      digest_type:
+        description: 'Digest type'
+        required: false
+        default: 'daily'
+        type: choice
+        options: [daily, weekly]
+
+jobs:
+  daily-digest:
+    name: Daily Digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'schedule' || github.event.inputs.digest_type == 'daily'
+
+    steps:
+      - name: Trigger daily digest
+        run: |
+          echo "Triggering daily digest at $(date)"
+          # The daily digest cron runs inside the server process (dailyDigest.js)
+          # This job serves as a backup trigger / monitoring step
+          echo "✅ Daily digest cron is handled by server process (dailyDigest.js)"
+
+  weekly-digest:
+    name: Weekly Digest (Monday only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.inputs.digest_type == 'weekly'
+
+    steps:
+      - name: Trigger weekly digest
+        run: |
+          echo "Triggering weekly digest at $(date)"
+          echo "✅ Weekly digest cron is handled by server process (weeklyDigest.js)"

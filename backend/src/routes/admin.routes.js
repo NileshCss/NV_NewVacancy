@@ -316,4 +316,36 @@ router.get('/audit-logs', requireSuperAdmin, async (req, res) => {
   }
 });
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW: AI Scraper Platform — Admin Dashboard Routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+const {
+  dashboardStats, scrapeLogs, aiLogs, flaggedJobs,
+  triggerScrapers, approveJob, ollamaHealth, triggerExpire,
+} = require('../controllers/admin.controller');
+
+// Dashboard stats (widgets)
+router.get('/dashboard-stats', requireAdmin, dashboardStats);
+
+// Scraper + AI logs
+router.get('/scrape-logs',     requireAdmin, scrapeLogs);
+router.get('/ai-logs',         requireAdmin, aiLogs);
+
+// Flagged jobs (fake-job review queue)
+router.get('/flagged-jobs',    requireAdmin, flaggedJobs);
+
+// Approve a flagged job → publish it
+router.post('/approve-job/:id', requireAdmin, approveJob);
+
+// Manual scraper trigger (super-admin only — expensive)
+router.post('/run-scrapers', requireSuperAdmin, triggerScrapers);
+
+// Ollama health check
+router.get('/ollama-health', requireAdmin, ollamaHealth);
+
+// Manual expire check (replacement for existing trigger-expiry-check in scraper.routes)
+router.post('/run-expire', requireSuperAdmin, triggerExpire);
+
 module.exports = router;
