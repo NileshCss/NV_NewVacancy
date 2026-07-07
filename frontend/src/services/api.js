@@ -332,18 +332,30 @@ export const scrapeJobPreview = async (url) => {
   const token = session?.access_token
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-  const res = await fetch(`${apiBase}/admin/scrape-job`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ url }),
-  })
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-  const json = await res.json().catch(() => ({}))
-  // Return the raw response so callers can inspect status codes (410 = expired)
-  return { ok: res.ok, status: res.status, ...json }
+  try {
+    const res = await fetch(`${apiBase}/admin/scrape-job`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ url }),
+      signal: controller.signal
+    })
+
+    const json = await res.json().catch(() => ({}))
+    return { ok: res.ok, status: res.status, ...json }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return { ok: false, success: false, error: 'Extraction timed out after 20 seconds. Please try again or fill manually.' }
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**
