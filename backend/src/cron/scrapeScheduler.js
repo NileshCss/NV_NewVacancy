@@ -106,13 +106,15 @@ async function processRawJob(rawJob) {
 
     // Walk-in detail record
     if (jobData.isWalkin && jobData.walkinDate && saved?.id) {
-      await supabase.from('walkins').insert({
-        job_id:           saved.id,
-        venue:            jobData.walkinVenue,
-        date:             jobData.walkinDate,
-        registration_url: jobData.registrationLink,
-        map_url:          jobData.mapUrl,
-      }).catch(() => {});
+      try {
+        await supabase.from('walkins').insert({
+          job_id:           saved.id,
+          venue:            jobData.walkinVenue,
+          date:             jobData.walkinDate,
+          registration_url: jobData.registrationLink,
+          map_url:          jobData.mapUrl,
+        });
+      } catch (e) {}
     }
 
     return { status: 'inserted', jobId: saved?.id, slug: saved?.slug, url: sourceUrl };
@@ -159,12 +161,15 @@ async function runAllScrapers() {
     };
 
     // Log run start
-    const { data: logRow } = await supabase
-      .from('scrape_logs')
-      .insert(logEntry)
-      .select('id')
-      .single()
-      .catch(() => ({ data: null }));
+    let logRow = null;
+    try {
+      const { data, error } = await supabase
+        .from('scrape_logs')
+        .insert(logEntry)
+        .select('id')
+        .single();
+      if (!error) logRow = data;
+    } catch (e) {}
 
     const scrapeStart = Date.now();
     const stats = { found: 0, inserted: 0, skipped: 0, flagged: 0, errors: 0 };
@@ -197,14 +202,16 @@ async function runAllScrapers() {
 
     // Update log row
     if (logRow?.id) {
-      await supabase.from('scrape_logs').update({
-        status:        stats.errors > stats.inserted ? 'partial' : 'success',
-        jobs_found:    stats.found,
-        jobs_inserted: stats.inserted,
-        jobs_skipped:  stats.skipped,
-        jobs_flagged:  stats.flagged,
-        duration_ms:   Date.now() - scrapeStart,
-      }).eq('id', logRow.id).catch(() => {});
+      try {
+        await supabase.from('scrape_logs').update({
+          status:        stats.errors > stats.inserted ? 'partial' : 'success',
+          jobs_found:    stats.found,
+          jobs_inserted: stats.inserted,
+          jobs_skipped:  stats.skipped,
+          jobs_flagged:  stats.flagged,
+          duration_ms:   Date.now() - scrapeStart,
+        }).eq('id', logRow.id);
+      } catch (e) {}
     }
 
     globalStats.inserted += stats.inserted;
