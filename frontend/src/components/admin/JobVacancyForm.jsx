@@ -405,22 +405,20 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
   };
 
   return (
-    <div style={{
-      fixed: 'inset-0', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '16px', background: 'rgba(8,14,26,0.85)', backdropFilter: 'blur(12px)'
-    }}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 md:p-6"
+         style={{ background: 'rgba(8,14,26,0.85)', backdropFilter: 'blur(12px)' }}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full flex flex-col overflow-hidden bg-[var(--bg-surface)]"
         style={{
-          width: '100%', maxWidth: '850px', maxHeight: '92vh',
-          background: 'var(--bg-surface)', border: '1px solid var(--border)',
-          borderRadius: '28px', boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-          overflow: 'hidden', display: 'flex', flexDirection: 'column'
+          maxWidth: '850px', maxHeight: '92vh',
+          border: '1px solid var(--border)',
+          borderRadius: 'clamp(16px, 4vw, 28px)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)'
         }}
       >
         {/* Header */}
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="flex items-center justify-between shrink-0 p-4 sm:p-5 md:px-8 md:py-6"
+             style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: 'rgba(249,115,22,0.1)', color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Sparkles size={24} />
@@ -438,8 +436,8 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
         </div>
 
         {/* Content */}
-        <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
-          <form id="job-vacancy-form" onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+        <div className="custom-scrollbar flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+          <form id="job-vacancy-form" onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8 md:gap-10">
             
             {/* Error Banner */}
             {saveError && (
@@ -459,24 +457,22 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
             )}
 
           {/* ── URL Auto-Fill Panel ──────────────────────────────────────────── */}
-            <div style={{
-              padding: '20px 24px',
+            <div className="flex flex-col gap-3 p-4 sm:p-5 md:p-6" style={{
               background: 'rgba(249,115,22,0.04)',
               border: '1px solid rgba(249,115,22,0.2)',
               borderRadius: '20px',
-              display: 'flex', flexDirection: 'column', gap: '12px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(249,115,22,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>
-                  🔗
-                </div>
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(249,115,22,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>
+                    🔗
+                  </div>
                   <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--brand)' }}>Auto-Fill from URL</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>Paste any job link to auto-populate all fields</span>
                 </div>
+                <span className="ml-0 sm:ml-2 text-[11px] text-[var(--text-muted)]">Paste any job link to auto-populate all fields</span>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center',
                   background: 'var(--bg-input)', border: '1px solid var(--border)',
@@ -493,8 +489,9 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                     onKeyDown={e => e.key === 'Enter' && !extracting && extractFromUrl()}
                     placeholder="https://company.com/jobs/... or https://ssc.nic.in/notice..."
                     disabled={extracting}
+                    className="min-h-[44px] w-full"
                     style={{
-                      flex: 1, background: 'transparent', border: 'none',
+                      background: 'transparent', border: 'none',
                       padding: '12px 14px', color: 'var(--text-primary)',
                       fontSize: '13px', outline: 'none',
                     }}
@@ -505,6 +502,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                   id="jvf-extract-btn"
                   onClick={extractFromUrl}
                   disabled={extracting || !jobUrl.trim()}
+                  className="min-h-[44px] justify-center"
                   style={{
                     padding: '12px 20px', borderRadius: '14px', border: 'none',
                     background: extracting || !jobUrl.trim() ? 'rgba(100,116,139,0.3)' : 'var(--brand)',
@@ -627,17 +625,23 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '24px 32px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)' }}>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button type="button" onClick={() => reset(getInitialValues())} style={{ padding: '10px 20px', borderRadius: '12px', background: 'var(--white-8)', border: 'none', color: 'var(--text-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="shrink-0 p-4 sm:p-5 md:px-8 md:py-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0"
+             style={{ borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+          <div className="flex w-full sm:w-auto gap-3">
+            <button type="button" onClick={() => reset(getInitialValues())} 
+                    className="flex-1 sm:flex-none min-h-[44px] justify-center flex items-center gap-2"
+                    style={{ padding: '10px 20px', borderRadius: '12px', background: 'var(--white-8)', border: 'none', color: 'var(--text-primary)', fontWeight: '700', cursor: 'pointer' }}>
               <RotateCcw size={16} /> Reset
             </button>
-            <button type="button" onClick={onClose} style={{ padding: '10px 20px', borderRadius: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>
+            <button type="button" onClick={onClose} 
+                    className="flex-1 sm:flex-none min-h-[44px] justify-center"
+                    style={{ padding: '10px 20px', borderRadius: '12px', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>
               Cancel
             </button>
           </div>
           <button 
             form="job-vacancy-form" type="submit" disabled={loading}
+            className="w-full sm:w-auto min-h-[44px] justify-center"
             style={{
               padding: '12px 32px', borderRadius: '16px', 
               background: loading ? 'var(--text-muted)' : 'var(--brand)', 
