@@ -19,6 +19,7 @@ const router  = express.Router();
 const {
   requireAdmin,
   requireSuperAdmin,
+  requireServiceOrSuperAdmin,
   isSuperAdminEmail,
   supabaseAdmin,
   SUPER_ADMIN_EMAIL,
@@ -339,13 +340,13 @@ router.get('/flagged-jobs',    requireAdmin, flaggedJobs);
 // Approve a flagged job → publish it
 router.post('/approve-job/:id', requireAdmin, approveJob);
 
-// Manual scraper trigger (super-admin only — expensive)
-router.post('/run-scrapers', requireSuperAdmin, triggerScrapers);
+// Manual scraper trigger — accepts service token (GitHub Actions) or super_admin JWT
+router.post('/run-scrapers', requireServiceOrSuperAdmin, triggerScrapers);
 
 // Ollama health check
 router.get('/ollama-health', requireAdmin, ollamaHealth);
 
-// Manual expire check (replacement for existing trigger-expiry-check in scraper.routes)
-router.post('/run-expire', requireSuperAdmin, triggerExpire);
+// Manual expire check — accepts service token (GitHub Actions) or super_admin JWT
+router.post('/run-expire', requireServiceOrSuperAdmin, triggerExpire);
 
 module.exports = router;

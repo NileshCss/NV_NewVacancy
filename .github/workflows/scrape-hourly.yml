@@ -12,16 +12,40 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Validate required secrets
+        run: |
+          MISSING=""
+          if [ -z "${{ secrets.BACKEND_URL }}" ]; then
+            MISSING="$MISSING BACKEND_URL"
+          fi
+          if [ -z "${{ secrets.BACKEND_SERVICE_TOKEN }}" ]; then
+            MISSING="$MISSING BACKEND_SERVICE_TOKEN"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "❌ FATAL: The following secrets are not set in GitHub repo → Settings → Secrets and variables → Actions:"
+            echo "   Missing:$MISSING"
+            echo ""
+            echo "Set them and re-run. Until then the scraper cannot trigger the deployed backend."
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+          echo "   BACKEND_URL: ${{ secrets.BACKEND_URL }}"
+
       - name: Trigger scraper via API
         run: |
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+          echo "Triggering scraper at $(date)"
+          RESPONSE_BODY=$(curl -s -w "\n%{http_code}" \
             -X POST \
             -H "Authorization: Bearer ${{ secrets.BACKEND_SERVICE_TOKEN }}" \
             -H "Content-Type: application/json" \
+            --max-time 60 \
             "${{ secrets.BACKEND_URL }}/api/admin/run-scrapers")
-          echo "Response status: $RESPONSE"
-          if [ "$RESPONSE" -lt 200 ] || [ "$RESPONSE" -ge 300 ]; then
-            echo "❌ Scraper trigger failed with status $RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE_BODY" | tail -n1)
+          BODY=$(echo "$RESPONSE_BODY" | head -n -1)
+          echo "Response status: $HTTP_CODE"
+          echo "Response body: $BODY"
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ Scraper trigger failed with status $HTTP_CODE"
             exit 1
           fi
           echo "✅ Scraper triggered successfully"

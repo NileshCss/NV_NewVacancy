@@ -111,11 +111,59 @@ function authorize(allowedRoles) {
 const requireAdmin      = [attachUser, authorize(['admin', 'super_admin'])];
 const requireSuperAdmin = [attachUser, authorize(['super_admin'])];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVICE TOKEN AUTH: allows GitHub Actions / cron to call protected routes
+// without a user JWT. Accepts either:
+//   (a) A valid Supabase JWT with super_admin role (browser-based access)
+//   (b) Bearer <BACKEND_SERVICE_TOKEN> (server-to-server, e.g. GitHub Actions)
+// ─────────────────────────────────────────────────────────────────────────────
+const requireServiceOrSuperAdmin = async (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Authorization header missing', code: 'AUTH_REQUIRED' });
+  }
+
+  // (b) Static service token check first — fast path for GitHub Actions
+  const serviceToken = process.env.BACKEND_SERVICE_TOKEN;
+  if (serviceToken && token === serviceToken) {
+    req.user = { id: 'service', email: 'github-actions@service', role: 'super_admin', isSuperAdmin: true };
+    return next();
+  }
+
+  // (a) Fall back to Supabase JWT validation
+  try {
+    const { data: { user }, error: authErr } = await supabaseRegular.auth.getUser(token);
+    if (authErr || !user) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token', code: 'AUTH_INVALID' });
+    }
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, role, is_blocked')
+      .eq('id', user.id)
+      .single();
+    if (profile?.is_blocked) {
+      return res.status(403).json({ success: false, error: 'Account suspended', code: 'ACCOUNT_BLOCKED' });
+    }
+    const effectiveRole = getEffectiveRole(profile, user.email);
+    if (effectiveRole !== 'super_admin') {
+      return res.status(403).json({ success: false, error: 'Super admin access required', code: 'FORBIDDEN' });
+    }
+    req.user = { id: user.id, email: user.email, role: effectiveRole, isSuperAdmin: true, profile };
+    next();
+  } catch (err) {
+    console.error('[RBAC] requireServiceOrSuperAdmin error:', err.message);
+    res.status(500).json({ success: false, error: 'Auth verification failed' });
+  }
+};
+
 module.exports = {
   attachUser,
   authorize,
   requireAdmin,
   requireSuperAdmin,
+  requireServiceOrSuperAdmin,
   isSuperAdminEmail,
   getEffectiveRole,
   SUPER_ADMIN_EMAIL,

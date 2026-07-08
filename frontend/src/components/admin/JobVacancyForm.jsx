@@ -256,9 +256,13 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     try {
       const result = await scrapeJobPreview(jobUrl.trim());
 
-      // Backend not reachable / not configured
-      if (!result && result === undefined) {
-        setExtractMsg({ type: 'error', text: 'Backend API is not reachable. Make sure the backend server is running.' });
+      // Backend not reachable / not configured — shown when VITE_API_URL is not set in production
+      if (!result) {
+        setExtractMsg({ type: 'error', text: '🔌 Cannot reach the backend server. Make sure the server is running on port 5000, or set VITE_API_URL in your Vercel environment variables.' });
+        return;
+      }
+      if (result.code === 'BACKEND_NOT_CONFIGURED') {
+        setExtractMsg({ type: 'error', text: '⚙️ Backend API is not configured for production. Go to Vercel → Project Settings → Environment Variables and set VITE_API_URL to your deployed backend URL (e.g. https://your-backend.railway.app/api), then redeploy.' });
         return;
       }
 
@@ -559,7 +563,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <h3 style={{ fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-primary)' }}>Basic Information</h3>
                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: '24px' }}>
                 <InputField label="Job Title" name="title" icon={Briefcase} register={register} error={errors.title} required placeholder="e.g. Senior Frontend Developer" />
                 <InputField label="Organization" name="organization" icon={Building2} register={register} error={errors.organization} required placeholder="e.g. Google India" />
                 <InputField label="Location" name="location" icon={MapPin} register={register} error={errors.location} placeholder="All India" />
@@ -576,7 +580,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <h3 style={{ fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-primary)' }}>Job Details</h3>
                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: '24px' }}>
                 <InputField label="Salary Range" name="salary_range" icon={IndianRupee} register={register} placeholder="e.g. ₹12L - ₹18L PA" />
                 <InputField label="Positions" name="positions" icon={Users} register={register} placeholder="e.g. 5 (number only)" type="number" />
                 <InputField label="Qualification" name="qualification" icon={GraduationCap} register={register} placeholder="e.g. B.Tech, MCA" />
@@ -596,7 +600,7 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
                 <h3 style={{ fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-primary)' }}>Application Info</h3>
                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: '24px' }}>
                 <InputField label="Apply URL" name="apply_url" icon={Globe} register={register} error={errors.apply_url} required placeholder="https://..." />
                 <InputField label="Last Date" name="last_date" icon={Calendar} type="date" register={register} />
               </div>
