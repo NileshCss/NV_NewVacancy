@@ -186,21 +186,29 @@ export const deleteJob = async (id) => {
 // ── WHATSAPP EDGE FUNCTION ──────────────────────────────────────
 export const notifyJobOnWhatsApp = async (job, action = 'new') => {
   console.log(`[notifyJobOnWhatsApp] Triggering WhatsApp Edge Function for job ${job.id}`)
-  
-  const { data, error } = await supabase.functions.invoke('whatsapp-notify', {
-    body: { action, vacancyData: job }
+
+  // Wrap in a 10-second timeout — supabase.functions.invoke has no built-in timeout.
+  // If the Edge Function is undeployed or hangs, it would block forever without this,
+  // causing the "Saving..." button to never unlock.
+  const invokePromise = supabase.functions.invoke('whatsapp-notify', {
+    body: { action, vacancyData: job },
   })
-  
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('WhatsApp notification timed out after 10 seconds')), 10000)
+  )
+
+  const { data, error } = await Promise.race([invokePromise, timeoutPromise])
+
   if (error) {
     console.error('[notifyJobOnWhatsApp] Edge Function Error:', error)
     throw new Error(error.message || 'Failed to trigger WhatsApp notification')
   }
-  
+
   if (!data?.success) {
     console.error('[notifyJobOnWhatsApp] WhatsApp API Error:', data?.error)
     throw new Error(data?.error || 'Unknown WhatsApp API error')
   }
-  
+
   return data
 }
 

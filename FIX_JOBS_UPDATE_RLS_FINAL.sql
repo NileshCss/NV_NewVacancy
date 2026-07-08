@@ -1,9 +1,9 @@
 -- ============================================================
--- FIX_JOBS_UPDATE_RLS_FINAL.sql
+-- FIX_JOBS_UPDATE_RLS_FINAL.sql   (v2 — updated 2026-07-08)
 -- Definitive RLS fix for admin job CRUD operations.
 --
 -- ROOT CAUSE:
---   The frontend updateJob() / addJob() / deleteJob() calls use a
+--   The frontend addJob() / updateJob() / deleteJob() calls use a
 --   Supabase client authenticated with the logged-in user's JWT
 --   (via createFreshClient). RLS evaluates this JWT.
 --
@@ -13,6 +13,10 @@
 --   ALWAYS fails for admin users — their JWT role claim is 'authenticated',
 --   not 'admin'. The role is only in the profiles table.
 --
+--   CONFIRMED: anonymous-key test returned code '42501' (RLS violation)
+--   on INSERT even with valid data — proving the INSERT policy is missing
+--   or broken.
+--
 -- SOLUTION:
 --   Use a SECURITY DEFINER function to safely look up the user's role
 --   from the profiles table using auth.uid(). This bypasses the JWT
@@ -20,12 +24,13 @@
 --
 -- HOW TO APPLY:
 --   1. Go to https://supabase.com/dashboard → your project → SQL Editor
---   2. Paste this entire file and click "Run"
---   3. Confirm the policies appear in Table Editor → jobs → Policies
+--   2. Paste this ENTIRE file and click "Run"
+--   3. You should see 4 rows in the verification output at the bottom
+--   4. After applying, retry "Post Vacancy" — it should succeed immediately
 -- ============================================================
 
--- Step 1: Create a SECURITY DEFINER helper function.
--- This function runs as the DB owner (bypassing RLS on profiles)
+-- Step 1: Create (or replace) the SECURITY DEFINER helper function.
+-- This function runs as the DB owner (bypasses RLS on profiles)
 -- so it can safely read the caller's role.
 CREATE OR REPLACE FUNCTION public.get_my_role()
 RETURNS TEXT
@@ -88,7 +93,8 @@ CREATE POLICY "jobs_delete_admin"
 -- Step 4: Make sure RLS is enabled on the jobs table
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
--- Step 5: Verify — this should show 4 policies
+-- Step 5: Verify — this should show EXACTLY 4 policies
+-- (jobs_delete_admin, jobs_insert_admin, jobs_select_public, jobs_update_admin)
 SELECT policyname, cmd, qual
 FROM pg_policies
 WHERE tablename = 'jobs' AND schemaname = 'public'

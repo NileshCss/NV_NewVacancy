@@ -343,6 +343,14 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     setLoading(true);
     setSaveError('');
 
+    // Safety net: force-unlock the button after 35s no matter what.
+    // This is a last-resort guard in case a dependency (Edge Function, Supabase)
+    // returns a promise that never settles.
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+      setSaveError('Request timed out after 35 seconds. The job may or may not have saved — please refresh the page to check, then retry if needed.');
+    }, 35000);
+
     try {
       console.log('[JobVacancyForm] Submitting:', isEdit ? 'UPDATE' : 'INSERT', data);
 
@@ -389,24 +397,30 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     } catch (err) {
       console.error('[JobVacancyForm] Error:', err);
       // If it was an AbortError from our API timeout, format it nicely
-      const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
-      const isRLS = err.message?.includes('[42501]') || err.message?.includes('RLS');
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('timed out');
+      const isRLS = err.message?.includes('[42501]') || err.message?.includes('row-level security') || err.message?.includes('RLS');
+      const isAuth = err.message?.includes('session') || err.message?.includes('JWT') || err.message?.includes('Auth');
       let msg = '';
       
       if (isTimeout) {
-        msg = 'Database connection timed out. Please check your network or Supabase status.';
+        msg = 'Database connection timed out. Check your network or Supabase status and try again.';
       } else if (isRLS) {
-        msg = 'Permission denied: Your account does not have permission to post jobs. Please contact an administrator or ensure your role is set to Admin.';
+        msg = `Permission denied (RLS): Your account role does not allow this operation. Ask your super admin to run FIX_JOBS_UPDATE_RLS_FINAL.sql in Supabase SQL Editor, then retry.\n\nFull error: ${err.message}`;
+      } else if (isAuth) {
+        msg = 'Your session has expired. Please refresh the page and log in again.';
       } else {
-        msg = err.message || 'Failed to save job. Please try again.';
+        // Surface the real error, not a generic message, so the admin can act on it.
+        msg = err.message || 'Failed to save job. Open the browser console (F12) for the full error, then retry.';
       }
       
       setSaveError(msg);
-      console.error('[JobVacancyForm] Full error details:', { isTimeout, isRLS, originalError: err.message, code: err.code });
+      console.error('[JobVacancyForm] Full error details:', { isTimeout, isRLS, isAuth, originalError: err.message, code: err.code });
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 md:p-6"
