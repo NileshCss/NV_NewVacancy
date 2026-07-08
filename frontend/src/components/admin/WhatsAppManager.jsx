@@ -29,6 +29,7 @@ const STATE_META = {
   connecting:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: '🟡', label: 'Connecting…' },
   disconnected: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  icon: '🔴', label: 'Disconnected' },
   needs_reauth: { color: '#a855f7', bg: 'rgba(168,85,247,0.12)', icon: '🟣', label: 'Needs Re-scan'},
+  disabled:     { color: '#64748b', bg: 'rgba(100,116,139,0.12)', icon: '⏸️', label: 'Disabled in Config' },
 }
 const defaultMeta = { color: '#64748b', bg: 'rgba(100,116,139,0.12)', icon: '⚪', label: 'Unknown' }
 
@@ -137,7 +138,7 @@ export default function WhatsAppManager() {
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const stateKey  = status?.state || 'disconnected'
+  const stateKey  = (status && !status.enabled) ? 'disabled' : (status?.state || 'disconnected')
   const meta      = STATE_META[stateKey] || defaultMeta
   const connected = stateKey === 'connected'
 
@@ -230,6 +231,7 @@ export default function WhatsAppManager() {
             { label: 'Last Disconnected', val: fmtTime(status?.lastDisconnectedAt) },
             { label: 'Disconnect Reason', val: fmtReason(status?.disconnectReason) },
             { label: 'Queue Length',      val: status?.queueLength ?? '—'          },
+            { label: 'Reconnects',        val: status?.reconnectAttempts ?? '0'    },
             { label: 'Group Configured',  val: status?.groupConfigured   ? '✅ Yes' : '❌ No' },
             { label: 'Channel Configured',val: status?.channelConfigured ? '✅ Yes' : '❌ No' },
           ].map(({ label, val }) => (
