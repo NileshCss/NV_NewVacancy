@@ -393,7 +393,7 @@ export default function AdminPanel() {
                 </div>
               ))}
             </div>
-            <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="admin-form-grid" style={{ gap: '1rem' }}>
               <div className="admin-stat-card" style={{ background: 'var(--bg-card)' }}>
                 <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>🎁 Top Affiliates</div>
                 {[...affs].sort((a,b) => (b.click_count||0)-(a.click_count||0)).slice(0,4).map((a,i) => (
@@ -439,16 +439,16 @@ export default function AdminPanel() {
               <table className="admin-table">
                 <thead><tr>
                   <th>Title</th><th>Org</th><th>Cat</th>
-                  <th>Featured</th><th>Active</th><th>Actions</th>
+                  <th className="admin-col-hide-xs">Featured</th><th className="admin-col-hide-xs">Active</th><th>Actions</th>
                 </tr></thead>
                 <tbody>
                   {jobs.map(j => (
                     <tr key={j.id}>
-                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{j.title}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{j.organization?.split(' ').slice(0,2).join(' ')}</td>
-                      <td><span className={`badge badge-${j.category === 'govt' ? 'green' : 'blue'}`}>{j.category}</span></td>
-                      <td><Toggle active={j.is_featured} onToggle={() => toggleJobFeat(j)} /></td>
-                      <td><Toggle active={j.is_active !== false} onToggle={() => toggleJobActive(j)} /></td>
+                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{j.title}</td>
+                      <td style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{j.organization?.split(' ').slice(0,2).join(' ')}</td>
+                      <td><span className={`badge badge-${j.category === 'govt' ? 'green' : 'blue'}`} style={{ whiteSpace: 'nowrap' }}>{j.category}</span></td>
+                      <td className="admin-col-hide-xs"><Toggle active={j.is_featured} onToggle={() => toggleJobFeat(j)} /></td>
+                      <td className="admin-col-hide-xs"><Toggle active={j.is_active !== false} onToggle={() => toggleJobActive(j)} /></td>
                       <td>
                         <ActBtns
                           onEdit={() => openEditJob(j)}

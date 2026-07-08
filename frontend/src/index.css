@@ -1031,31 +1031,43 @@ body{overflow-x:hidden}
 @media(min-width:900px){.admin-sidebar{display:flex}}
 
 /* Mobile admin horizontal scroll nav */
-.admin-mobile-nav{display:flex;overflow-x:auto;gap:.4rem;padding:.75rem 1rem;background:var(--bg-surface);border-bottom:1px solid var(--border);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.admin-mobile-nav{display:flex;overflow-x:auto;gap:.4rem;padding:.6rem .75rem;background:var(--bg-surface);border-bottom:1px solid var(--border);scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .admin-mobile-nav::-webkit-scrollbar{display:none}
 @media(min-width:900px){.admin-mobile-nav{display:none}}
-.admin-mobile-nav-item{flex-shrink:0;display:flex;align-items:center;gap:.35rem;padding:.45rem .9rem;border-radius:10px;font-size:.8rem;font-weight:600;color:var(--text-secondary);background:var(--white-5);border:1px solid var(--border);cursor:pointer;transition:all .2s;min-height:36px;white-space:nowrap}
+.admin-mobile-nav-item{flex-shrink:0;display:flex;align-items:center;gap:.3rem;padding:.4rem .75rem;border-radius:10px;font-size:.76rem;font-weight:600;color:var(--text-secondary);background:var(--white-5);border:1px solid var(--border);cursor:pointer;transition:all .2s;min-height:34px;white-space:nowrap}
 .admin-mobile-nav-item.active{background:rgba(249,115,22,.1);border-color:rgba(249,115,22,.3);color:var(--brand-l)}
 
 @media(max-width:899px){
   .admin-mobile-nav{grid-column:1 / -1}
-  .admin-content{padding:1.25rem 1rem;grid-column:1 / -1;width:100%}
-  .admin-header{flex-direction:column;align-items:flex-start;gap:.75rem;margin-bottom:1.25rem}
-  .admin-title{font-size:1.2rem !important}
+  .admin-content{padding:1.25rem 1rem;grid-column:1 / -1;width:100%;box-sizing:border-box}
+  .admin-header{flex-direction:column;align-items:flex-start;gap:.6rem;margin-bottom:1.25rem}
+  .admin-header > div:last-child{display:flex;flex-wrap:wrap;gap:.5rem;width:100%}
+  .admin-header .btn{flex:1;min-width:120px;justify-content:center}
+  .admin-title{font-size:1.15rem !important}
   .admin-cards{grid-template-columns:repeat(2,1fr);gap:.75rem}
 }
 @media(max-width:479px){
-  .admin-cards{grid-template-columns:1fr !important;gap:.5rem}
-  .admin-stat-val{font-size:1.4rem}
-  .admin-content{padding:1rem .75rem}
+  .admin-cards{grid-template-columns:repeat(2,1fr) !important;gap:.5rem}
+  .admin-stat-val{font-size:1.3rem}
+  .admin-stat-card{padding:1rem .85rem}
+  .admin-content{padding:.85rem .65rem}
   .admin-form-grid{grid-template-columns:1fr !important}
   .btn-ghost{border:1px solid var(--border);background:var(--white-5)}
 }
-@media(max-width:767px){
-  .admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .admin-table{min-width:500px}
-  .admin-table th,.admin-table td{padding:.6rem .75rem;font-size:.78rem}
+/* Table scroll on all small screens */
+@media(max-width:899px){
+  .admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}
+  .admin-table{min-width:560px}
+  .admin-table th,.admin-table td{padding:.55rem .7rem;font-size:.78rem}
+  /* Keep badge text on one line — never let it wrap */
+  .admin-table .badge{white-space:nowrap;word-break:keep-all}
 }
+/* Job table — hide lower-priority cols on mobile */
+@media(max-width:599px){
+  .admin-table{min-width:420px}
+  .admin-col-hide-xs{display:none}
+}
+
 
 /* ── FOOTER ── */
 .footer-grid{display:grid;grid-template-columns:1fr;gap:1.75rem;margin-bottom:2rem}
