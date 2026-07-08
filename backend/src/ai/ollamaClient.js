@@ -2,15 +2,18 @@
 
 /**
  * ollamaClient.js
- * HTTP client for the local Ollama server.
+ * HTTP client for the Ollama inference server (local or VPS).
  *
  * Supports both /api/generate (raw) and /api/chat (messages) endpoints.
  * Falls back gracefully — callers get a structured error they can act on.
  *
  * Config (backend/.env):
- *   OLLAMA_BASE_URL  = http://localhost:11434   (or remote host)
- *   OLLAMA_MODEL     = llama3.1                 (or gemma2, mistral, qwen2.5, phi3)
- *   OLLAMA_TIMEOUT   = 60000                    (ms — LLMs are slow without GPU)
+ *   OLLAMA_BASE_URL  = http://localhost:11434       (local dev)
+ *                      https://ollama.newvacancy.live  (VPS via Nginx)
+ *   OLLAMA_API_KEY   = <random secret>              (required when using VPS Nginx gate)
+ *                      leave unset for local dev (no auth needed on localhost)
+ *   OLLAMA_MODEL     = llama3.1                     (or gemma2, mistral, qwen2.5, phi3)
+ *   OLLAMA_TIMEOUT   = 60000                        (ms — LLMs are slow without GPU)
  */
 
 const axios = require('axios');
@@ -18,6 +21,15 @@ const axios = require('axios');
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.1';
 const OLLAMA_TIMEOUT  = parseInt(process.env.OLLAMA_TIMEOUT || '60000', 10);
+const OLLAMA_API_KEY  = process.env.OLLAMA_API_KEY  || '';
+
+// Build shared auth headers — only include x-api-key when the env var is set.
+// This keeps local dev zero-config while the VPS path is authenticated.
+function buildHeaders(extra = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extra };
+  if (OLLAMA_API_KEY) headers['x-api-key'] = OLLAMA_API_KEY;
+  return headers;
+}
 
 // ── Health check ──────────────────────────────────────────────────────────────
 
@@ -27,7 +39,10 @@ const OLLAMA_TIMEOUT  = parseInt(process.env.OLLAMA_TIMEOUT || '60000', 10);
  */
 async function checkHealth() {
   try {
-    const res = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, { timeout: 5000 });
+    const res = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, {
+      timeout: 5000,
+      headers: buildHeaders(),
+    });
     const models = (res.data?.models || []).map(m => m.name);
     const modelAvailable = models.some(m => m.startsWith(OLLAMA_MODEL.split(':')[0]));
     return {
@@ -37,10 +52,14 @@ async function checkHealth() {
       error: modelAvailable ? undefined : `Model '${OLLAMA_MODEL}' not found. Pull it with: ollama pull ${OLLAMA_MODEL}`,
     };
   } catch (err) {
+    // 401 means the VPS is up but the API key is wrong/missing
+    const hint = err.response?.status === 401
+      ? 'Check OLLAMA_API_KEY — the VPS returned 401 Unauthorized'
+      : err.message;
     return {
       ok:    false,
       model: OLLAMA_MODEL,
-      error: `Ollama unreachable at ${OLLAMA_BASE_URL}: ${err.message}`,
+      error: `Ollama unreachable at ${OLLAMA_BASE_URL}: ${hint}`,
     };
   }
 }
@@ -77,7 +96,7 @@ async function generate(systemPrompt, userContent, opts = {}) {
     payload,
     {
       timeout: OLLAMA_TIMEOUT,
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(),
     }
   );
 
