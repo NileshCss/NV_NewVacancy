@@ -499,7 +499,7 @@ export default function AdminPanel() {
             )}
             <div className="admin-table-wrap" style={{ background: 'var(--bg-card)' }}>
               <table className="admin-table">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Provider</th><th>Profile</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th className="admin-col-hide-xs">Provider</th><th className="admin-col-hide-xs">Profile</th><th>Status</th><th className="admin-col-hide-xs">Joined</th><th>Actions</th></tr></thead>
                 <tbody>
                   {users.map(u => {
                     const isSelf        = u.id === user?.id
@@ -507,12 +507,12 @@ export default function AdminPanel() {
                     const targetRole    = isTargetSuper ? 'super_admin' : (u.role || 'user')
                     return (
                       <tr key={u.id} style={{ opacity: u.is_blocked ? 0.6 : 1 }}>
-                        <td style={{ color: 'var(--text-secondary)' }}>
+                        <td style={{ color: 'var(--text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {u.full_name || 'Anonymous'}
                           {isSelf && <span style={{ fontSize: '.7rem', color: 'var(--brand)', marginLeft: '.4rem', fontWeight: 600 }}>(You)</span>}
                           {isTargetSuper && <span style={{ fontSize: '.7rem', color: '#f59e0b', marginLeft: '.4rem', fontWeight: 700 }}>👑</span>}
                         </td>
-                        <td style={{ color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || u.id}</td>
+                        <td style={{ color: 'var(--text-secondary)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || u.id}</td>
                         <td>
                           <span className={`badge ${
                             targetRole === 'super_admin' ? '' :
@@ -521,22 +521,24 @@ export default function AdminPanel() {
                             {targetRole === 'super_admin' ? '👑 Super Admin' : targetRole}
                           </span>
                         </td>
-                        <td>
+                        <td className="admin-col-hide-xs">
                           <span style={{
                             fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
                             background: u.provider === 'google' ? '#FEF3C7' : '#EFF6FF',
                             color: u.provider === 'google' ? '#92400E' : '#1E40AF',
                             border: `1px solid ${u.provider === 'google' ? '#FDE68A' : '#BFDBFE'}`,
                             fontWeight: '500',
+                            whiteSpace: 'nowrap'
                           }}>
                             {u.provider === 'google' ? '🔵 Google' : '📧 Email'}
                           </span>
                         </td>
-                        <td>
+                        <td className="admin-col-hide-xs">
                           <span style={{
                             fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
                             background: u.profile_completed ? '#D1FAE5' : '#FEE2E2',
                             color: u.profile_completed ? '#065F46' : '#991B1B',
+                            whiteSpace: 'nowrap'
                           }}>
                             {u.profile_completed ? '✓ Complete' : '⚠ Incomplete'}
                           </span>
@@ -547,7 +549,7 @@ export default function AdminPanel() {
                             : <span className="badge badge-green" style={{ background: 'rgba(34,197,94,.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,.3)' }}>✓ Active</span>
                           }
                         </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="admin-col-hide-xs" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                         <td>
                           {isTargetSuper ? (
                             // Super admin row — no actions allowed, ever
