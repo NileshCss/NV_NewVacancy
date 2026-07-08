@@ -177,6 +177,9 @@ class WhatsAppService {
 
     await _writeLog('logged_out', { triggeredBy, phoneNumber: this._phoneNumber });
     this._phoneNumber = null;
+
+    // Restart immediately so a new QR code is generated for the admin panel
+    this.initialize();
   }
 
   // ── PRIVATE: connect ─────────────────────────────────────────────────────────
@@ -260,7 +263,18 @@ class WhatsAppService {
         if (statusCode === DisconnectReason.loggedOut) {
           console.log('\n🔴  WhatsApp logged out from phone — admin must re-scan QR in dashboard.\n');
           this._phoneNumber = null;
-          // Don't auto-reconnect — the session is gone; user must re-scan
+          
+          // Clear session files
+          const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
+          try {
+            if (fs.existsSync(authPath)) {
+              fs.rmSync(authPath, { recursive: true, force: true });
+            }
+          } catch (err) {}
+
+          this.isInitialized = false;
+          // Restart socket to generate a new QR code immediately
+          this.initialize();
           return;
         }
 
