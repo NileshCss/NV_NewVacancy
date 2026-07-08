@@ -137,7 +137,29 @@ async function triggerExpire(req, res) {
   }
 }
 
+// ── PUT /api/admin/jobs/:id ──────────────────────────────────────────────────
+
+async function updateJobByAdmin(req, res) {
+  const { id } = req.params;
+  const payload = req.body;
+  
+  try {
+    // Using the service role client instantiated at the top of the file
+    const { data, error } = await supabase
+      .from('jobs')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, data, message: 'Job updated successfully via admin service' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 module.exports = {
   dashboardStats, scrapeLogs, aiLogs, flaggedJobs,
-  triggerScrapers, approveJob, ollamaHealth, triggerExpire,
+  triggerScrapers, approveJob, ollamaHealth, triggerExpire, updateJobByAdmin,
 };

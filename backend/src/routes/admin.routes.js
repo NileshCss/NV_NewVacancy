@@ -324,7 +324,7 @@ router.get('/audit-logs', requireSuperAdmin, async (req, res) => {
 
 const {
   dashboardStats, scrapeLogs, aiLogs, flaggedJobs,
-  triggerScrapers, approveJob, ollamaHealth, triggerExpire,
+  triggerScrapers, approveJob, ollamaHealth, triggerExpire, updateJobByAdmin,
 } = require('../controllers/admin.controller');
 
 // Dashboard stats (widgets)
@@ -339,6 +339,9 @@ router.get('/flagged-jobs',    requireAdmin, flaggedJobs);
 
 // Approve a flagged job → publish it
 router.post('/approve-job/:id', requireAdmin, approveJob);
+
+// Update a job bypassing RLS
+router.put('/jobs/:id', requireAdmin, updateJobByAdmin);
 
 // Manual scraper trigger — accepts service token (GitHub Actions) or super_admin JWT
 router.post('/run-scrapers', requireServiceOrSuperAdmin, triggerScrapers);

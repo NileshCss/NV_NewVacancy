@@ -170,12 +170,29 @@ export const updateJob = async (id, job) => {
   const timeoutId = setTimeout(() => controller.abort(), 30000)  // 30s — updates can be slower
   
   try {
+    // Try the service-role admin path first (bypasses RLS)
+    try {
+      const response = await adminFetch(`/admin/jobs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      })
+      if (response && response.success) {
+        console.log('[updateJob] success via admin service')
+        return response.data
+      }
+    } catch (adminErr) {
+      // If backend is unreachable or user is not admin, fallback to direct Supabase client
+      console.warn('[updateJob] Admin update failed, falling back to direct DB update:', adminErr.message)
+    }
+
+    // Fallback: direct Supabase update (subject to RLS)
     const { data, error } = await freshClient.from('jobs').update(payload).eq('id', id).select().single().abortSignal(controller.signal)
     if (error) {
       console.error('[updateJob] Supabase error:', error)
       throw dbError(error)
     }
-    console.log('[updateJob] success')
+    console.log('[updateJob] success via direct DB')
     return data
   } finally {
     clearTimeout(timeoutId)
