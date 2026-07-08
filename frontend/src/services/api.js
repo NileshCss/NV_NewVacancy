@@ -120,12 +120,29 @@ export const addJob = async (job) => {
   const timeoutId = setTimeout(() => controller.abort(), 15000)
   
   try {
+    // Try the service-role admin path first (bypasses RLS)
+    try {
+      const response = await adminFetch(`/admin/jobs`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      })
+      if (response && response.success) {
+        console.log('[addJob] success via admin service')
+        return response.data
+      }
+    } catch (adminErr) {
+      // If backend is unreachable or user is not admin, fallback to direct Supabase client
+      console.warn('[addJob] Admin creation failed, falling back to direct DB insert:', adminErr.message)
+    }
+
+    // Fallback: direct Supabase insert (subject to RLS)
     const { data, error } = await freshClient.from('jobs').insert(payload).select().single().abortSignal(controller.signal)
     if (error) {
       console.error('[addJob] Supabase error:', error)
       throw dbError(error)
     }
-    console.log('[addJob] success')
+    console.log('[addJob] success via direct DB')
     return data
   } finally {
     clearTimeout(timeoutId)

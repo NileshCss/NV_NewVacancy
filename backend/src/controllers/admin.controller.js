@@ -159,7 +159,24 @@ async function updateJobByAdmin(req, res) {
   }
 }
 
+async function createJobByAdmin(req, res) {
+  const payload = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from('jobs')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, data, message: 'Job created successfully via admin service' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 module.exports = {
   dashboardStats, scrapeLogs, aiLogs, flaggedJobs,
-  triggerScrapers, approveJob, ollamaHealth, triggerExpire, updateJobByAdmin,
+  triggerScrapers, approveJob, ollamaHealth, triggerExpire, updateJobByAdmin, createJobByAdmin,
 };
