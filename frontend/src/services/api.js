@@ -12,6 +12,16 @@ const dbError = (error) => {
   return new Error((error.message || 'Database error') + code)
 }
 
+// ── Helper: get backend API base URL with guaranteed /api suffix ──
+const getApiBase = () => {
+  let url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  url = url.replace(/\/+$/, '') // remove trailing slash
+  if (!url.endsWith('/api')) {
+    url += '/api'
+  }
+  return url
+}
+
 // ── JOBS ───────────────────────────────────────────────────────
 // Public fetch — only active jobs shown to users
 export const fetchJobs = async (category = null) => {
@@ -303,7 +313,7 @@ export const fetchUsers = async () => {
 async function adminFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  const apiBase = getApiBase()
   const res = await fetch(`${apiBase}${path}`, {
     ...options,
     headers: {
@@ -330,7 +340,7 @@ async function adminFetch(path, options = {}) {
 export const scrapeJobPreview = async (url) => {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  const apiBase = getApiBase()
 
   // Warn clearly when no backend URL is configured (production with no deployed backend)
   const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1')
