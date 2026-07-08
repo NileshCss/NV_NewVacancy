@@ -121,22 +121,32 @@ export const addJob = async (job) => {
   
   try {
     // Try the service-role admin path first (bypasses RLS)
+    let adminResponse = null
     try {
-      const response = await adminFetch(`/admin/jobs`, {
+      adminResponse = await adminFetch(`/admin/jobs`, {
         method: 'POST',
         body: JSON.stringify(payload),
         signal: controller.signal
       })
-      if (response && response.success) {
-        console.log('[addJob] success via admin service')
-        return response.data
-      }
     } catch (adminErr) {
-      // If backend is unreachable or user is not admin, fallback to direct Supabase client
-      console.warn('[addJob] Admin creation failed, falling back to direct DB insert:', adminErr.message)
+      // Only fall through if the backend itself is unreachable (network error, 401 auth)
+      // NOT if backend returned a proper error body
+      console.warn('[addJob] Admin endpoint unreachable, falling back to direct DB insert:', adminErr.message)
     }
 
-    // Fallback: direct Supabase insert (subject to RLS)
+    if (adminResponse !== null) {
+      // Backend responded — check result
+      if (adminResponse.success) {
+        console.log('[addJob] success via admin service')
+        return adminResponse.data
+      }
+      // Backend is up but returned an error (e.g. DB error, validation) — surface it directly
+      const errMsg = adminResponse.error || 'Admin service rejected the job creation'
+      console.error('[addJob] Admin service error:', errMsg)
+      throw new Error(errMsg)
+    }
+
+    // Fallback: direct Supabase insert (subject to RLS — only works if RLS allows this role)
     const { data, error } = await freshClient.from('jobs').insert(payload).select().single().abortSignal(controller.signal)
     if (error) {
       console.error('[addJob] Supabase error:', error)

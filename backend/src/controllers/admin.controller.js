@@ -7,11 +7,13 @@
  * All routes require admin/super_admin role (enforced in router).
  */
 
-const { createClient }   = require('@supabase/supabase-js');
+const { createClient }      = require('@supabase/supabase-js');
 const { getDashboardStats } = require('../services/analytics.service');
 const { runAllScrapers }    = require('../cron/scrapeScheduler');
 const { runExpireJobs }     = require('../cron/expireJobs');
 const { checkHealth }       = require('../ai/ollamaClient');
+const notificationService   = require('../services/notificationService');
+const { notifyJobTelegram } = require('../services/telegram.service');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -170,8 +172,23 @@ async function createJobByAdmin(req, res) {
       .single();
 
     if (error) throw error;
+
+    // ── Fire notifications in background — never block the HTTP response ──
+    const job = data;
+    setImmediate(() => {
+      // WhatsApp (group + channel)
+      notificationService.notifyJob(job, 'new').catch(err =>
+        console.error('[createJobByAdmin] WhatsApp notify failed:', err.message)
+      );
+      // Telegram
+      notifyJobTelegram(job, 'new').catch(err =>
+        console.error('[createJobByAdmin] Telegram notify failed:', err.message)
+      );
+    });
+
     res.json({ success: true, data, message: 'Job created successfully via admin service' });
   } catch (err) {
+    console.error('[createJobByAdmin] DB error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 }

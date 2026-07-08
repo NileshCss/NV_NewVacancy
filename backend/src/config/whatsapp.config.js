@@ -5,6 +5,8 @@
  * Central configuration for all WhatsApp-related settings.
  * All values are read from environment variables so no secret
  * ever lives in source code.
+ *
+ * Now uses Baileys (WebSocket) instead of whatsapp-web.js (Puppeteer).
  */
 
 module.exports = {
@@ -12,42 +14,19 @@ module.exports = {
   enabled: process.env.WHATSAPP_ENABLED === 'true',
 
   // ── Targets ────────────────────────────────────────────────────────────────
-  // Format: 120363XXXXXXXXXX@g.us   (group)
-  //         120363XXXXXXXXXX@newsletter  (channel/newsletter)
+  // Format: 120363XXXXXXXXXX@g.us          (WhatsApp group)
+  //         120363XXXXXXXXXX@newsletter    (WhatsApp channel/newsletter)
   groupId:   process.env.WHATSAPP_GROUP_ID   || '',
   channelId: process.env.WHATSAPP_CHANNEL_ID || '',
 
-  // ── Puppeteer / Client options ─────────────────────────────────────────────
-  puppeteer: {
-    headless:        true,
-    // Explicit Chromium path — auto-detected from puppeteer cache
-    executablePath: (() => {
-      try { return require('puppeteer').executablePath(); } catch { return undefined; }
-    })(),
-    protocolTimeout: 120000,  // 2 min — fixes "Runtime.callFunctionOn timed out"
-    timeout:         120000,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-first-run',
-      '--disable-extensions',
-      '--disable-background-networking',
-    ],
-  },
-
-  // ── Auth timeout ───────────────────────────────────────────────────────────
-  authTimeoutMs: 120000,
-
-
   // ── Auth ───────────────────────────────────────────────────────────────────
-  authDataPath: process.env.WHATSAPP_AUTH_PATH || './.wwebjs_auth',
-  clientId:     'newvacancy-bot',
+  // Path where Baileys session files are stored.
+  // Add this folder to .gitignore — NEVER commit session data.
+  authDataPath: process.env.WHATSAPP_AUTH_PATH || './.baileys_auth_info',
 
   // ── Auto-reconnect ─────────────────────────────────────────────────────────
-  autoReconnect:       process.env.WHATSAPP_AUTO_RECONNECT !== 'false', // default true
-  reconnectDelay:      5000,   // ms — multiplied by attempt number (linear backoff)
+  autoReconnect:        process.env.WHATSAPP_AUTO_RECONNECT !== 'false', // default true
+  reconnectDelay:       5000,   // ms — multiplied by attempt number (linear backoff)
   maxReconnectAttempts: 10,
 
   // ── Rate-limit (messages per rolling hour) ─────────────────────────────────
@@ -65,7 +44,8 @@ module.exports = {
 
   // ── In-flight queue settings ───────────────────────────────────────────────
   queue: {
-    maxSize:         100,   // drop oldest if queue exceeds this
-    interMessageMs:  1200,  // delay between queued sends
+    maxSize:        100,   // drop oldest if queue exceeds this
+    interMessageMs: 1200,  // delay between queued sends
   },
 };
+

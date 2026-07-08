@@ -141,9 +141,10 @@ vite.config.ts.timestamp-*
 # OS specifics
 .DS_Store
 
-# ── WhatsApp Web session (contains auth tokens — never commit) ────
+# ── WhatsApp session data (contains auth tokens — NEVER commit) ──
 .wwebjs_auth/
 .wwebjs_cache/
+.baileys_auth_info/
 
 # ── Project-specific temp files ───────────────────────────────────
 qr-scan.html
