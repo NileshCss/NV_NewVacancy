@@ -18,6 +18,7 @@ import AdminAIAssistant  from '../components/admin/AdminAIAssistant'
 import LiveUpdatesManager from './admin/LiveUpdatesManager'
 import JobVacancyForm from '../components/admin/JobVacancyForm'
 import AdminScraper from '../components/admin/AdminScraper'
+import WhatsAppManager from '../components/admin/WhatsAppManager'
 
 // ── Defaults (news + affiliates) ──────────────────────────────────
 const NEWS_DEFAULTS = { title: '', summary: '', source_name: '', source_url: '', category: 'govt', is_featured: false, is_active: true }
@@ -228,6 +229,7 @@ export default function AdminPanel() {
     { id: 'users',        label: '👥 Users' },
     { id: 'ai',           label: '✨ AI Assistant' },
     { id: 'scraper',      label: '🤖 AI Scraper' },
+    { id: 'whatsapp',     label: '📱 WhatsApp' },
   ]
   const STATS = [
     { icon: '💼', val: dashStats.totalJobs,       label: 'Total Jobs' },
@@ -593,6 +595,7 @@ export default function AdminPanel() {
         {section === 'live-updates' && <LiveUpdatesManager />}
         {section === 'ai'           && <AdminAIAssistant />}
         {section === 'scraper'      && <AdminScraper />}
+        {section === 'whatsapp'     && <WhatsAppManager />}
       </div>
 
       {/* ── JOB FORM (Modern Upgrade) ── */}

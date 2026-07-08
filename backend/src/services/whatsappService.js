@@ -12,44 +12,78 @@
  *  • Rate-limit window — rolling 1-hour counter, excess messages are queued.
  *  • Idempotency guard — deduplicates identical (chatId + message) pairs
  *    within a 5-second window so a double-fire never posts twice.
+ *  • QR tracking — current QR string stored in memory, cleared on connect.
+ *  • Event logging — every connect/disconnect/logout event written to
+ *    whatsapp_logs Supabase table (non-blocking, best-effort).
  *
- * Public API (unchanged from previous whatsapp-web.js version):
- *   initialize()        — connect and boot session (safe to call multiple times)
- *   destroy()           — clean shutdown
- *   sendMessage(id, msg)— send to any chat JID
- *   sendToGroup(msg)    — send to configured WHATSAPP_GROUP_ID
- *   sendToChannel(msg)  — send to configured WHATSAPP_CHANNEL_ID
- *   getAllChats()        — list contacts/groups (for JID discovery)
- *   getStatus()         — return connection status object
+ * Public API:
+ *   initialize()           — connect and boot session (safe to call multiple times)
+ *   destroy()              — clean shutdown
+ *   logout(triggeredBy)    — log out session + clear auth files
+ *   sendMessage(id, msg)   — send to any chat JID
+ *   sendToGroup(msg)       — send to configured WHATSAPP_GROUP_ID
+ *   sendToChannel(msg)     — send to configured WHATSAPP_CHANNEL_ID
+ *   getAllChats()           — list groups (for JID discovery)
+ *   getStatus()            — basic status object (existing callers)
+ *   getDetailedStatus()    — full status with phone, timestamps, reason
+ *   getQR()                — current QR string, null if connected/no QR
  */
 
 const path      = require('path');
+const fs        = require('fs');
 const qrcode    = require('qrcode-terminal');
+const QRCode    = require('qrcode');
 const logger    = require('../utils/logger');
 const config    = require('../config/whatsapp.config');
 
-// ── Dedup window (ms) ─────────────────────────────────────────────────────────
+// ── Supabase service-role client for writing logs ─────────────────────────────
+const { createClient } = require('@supabase/supabase-js');
+const _supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY,
+  { auth: { persistSession: false } }
+);
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 const DEDUP_WINDOW_MS    = 5000;
 const MIN_SEND_DELAY_MS  = 3000;
 const MAX_SEND_DELAY_MS  = 8000;
 
-// ── Lazy-load Baileys (ESM module) ────────────────────────────────────────────
-// Baileys is an ESM-only package. We use dynamic import() to use it from CJS.
-let _baileys = null;
-async function getBaileys() {
-  if (!_baileys) {
-    _baileys = await import('@whiskeysockets/baileys');
-  }
-  return _baileys;
-}
+// ── State enum ────────────────────────────────────────────────────────────────
+const STATE = {
+  DISCONNECTED: 'disconnected',
+  CONNECTING:   'connecting',
+  CONNECTED:    'connected',
+  NEEDS_REAUTH: 'needs_reauth',
+};
 
 function randomDelay() {
   const ms = MIN_SEND_DELAY_MS + Math.random() * (MAX_SEND_DELAY_MS - MIN_SEND_DELAY_MS);
   return new Promise(r => setTimeout(r, Math.round(ms)));
 }
 
-// ── State enum ────────────────────────────────────────────────────────────────
-const STATE = { DISCONNECTED: 'disconnected', CONNECTING: 'connecting', CONNECTED: 'connected', NEEDS_REAUTH: 'needs_reauth' };
+// ── Lazy-load Baileys (ESM-only package) ─────────────────────────────────────
+let _baileys = null;
+async function getBaileys() {
+  if (!_baileys) _baileys = await import('@whiskeysockets/baileys');
+  return _baileys;
+}
+
+// ── Write a log entry to Supabase (non-blocking, best-effort) ─────────────────
+async function _writeLog(eventType, { reason = null, phoneNumber = null, triggeredBy = 'system' } = {}) {
+  try {
+    await _supabase.from('whatsapp_logs').insert({
+      event_type:   eventType,
+      reason,
+      phone_number: phoneNumber,
+      triggered_by: triggeredBy,
+    });
+  } catch (err) {
+    logger.warn('[WhatsApp] Failed to write log entry', { error: err.message });
+  }
+}
+
+// ── Service class ─────────────────────────────────────────────────────────────
 
 class WhatsAppService {
   constructor() {
@@ -59,16 +93,24 @@ class WhatsAppService {
     this.isInitialized     = false;
     this.reconnectAttempts = 0;
 
-    // In-memory queue: [{ chatId, message, resolve, reject }]
-    this._queue       = [];
+    // Status tracking
+    this._phoneNumber        = null;
+    this._lastConnectedAt    = null;
+    this._lastDisconnectedAt = null;
+    this._disconnectReason   = null;
+    this._currentQR          = null;  // raw QR string from Baileys
+    this._currentQRPng       = null;  // base64 PNG for the API
+
+    // In-memory queue
+    this._queue        = [];
     this._queueRunning = false;
 
-    // Rolling rate-limit counter
-    this._rlCounter   = 0;
-    this._rlResetAt   = Date.now() + config.rateLimit.windowMs;
+    // Rate-limit
+    this._rlCounter = 0;
+    this._rlResetAt = Date.now() + config.rateLimit.windowMs;
 
-    // Dedup map: key → expiry timestamp
-    this._dedupMap    = new Map();
+    // Dedup
+    this._dedupMap = new Map();
 
     // Reconnect timer
     this._reconnectTimer = null;
@@ -100,6 +142,43 @@ class WhatsAppService {
     }
   }
 
+  // ── PUBLIC: logout ───────────────────────────────────────────────────────────
+
+  async logout(triggeredBy = 'system') {
+    logger.info('[WhatsApp] Logout requested', { triggeredBy });
+
+    try {
+      if (this.sock) {
+        await this.sock.logout();
+      }
+    } catch (err) {
+      logger.warn('[WhatsApp] Baileys logout error (continuing)', { error: err.message });
+    }
+
+    // Clear session files so next connect shows a fresh QR
+    const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
+    try {
+      if (fs.existsSync(authPath)) {
+        fs.rmSync(authPath, { recursive: true, force: true });
+        logger.info('[WhatsApp] Auth files cleared');
+      }
+    } catch (err) {
+      logger.warn('[WhatsApp] Could not clear auth files', { error: err.message });
+    }
+
+    // Update state
+    this.sock              = null;
+    this.state             = STATE.NEEDS_REAUTH;
+    this.isInitialized     = false;
+    this._currentQR        = null;
+    this._currentQRPng     = null;
+    this._disconnectReason = 'manual_logout';
+    this._lastDisconnectedAt = new Date().toISOString();
+
+    await _writeLog('logged_out', { triggeredBy, phoneNumber: this._phoneNumber });
+    this._phoneNumber = null;
+  }
+
   // ── PRIVATE: connect ─────────────────────────────────────────────────────────
 
   async _connect() {
@@ -108,28 +187,24 @@ class WhatsAppService {
       useMultiFileAuthState,
       DisconnectReason,
       Browsers,
-      makeInMemoryStore,
     } = await getBaileys();
 
-    const { Boom }  = await import('@hapi/boom');
+    const { Boom } = await import('@hapi/boom');
 
-    const authPath  = path.resolve(config.authDataPath || './.baileys_auth_info');
+    const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
     const { state: authState, saveCreds } = await useMultiFileAuthState(authPath);
 
-    // Suppress verbose Baileys/pino logs — only let our own logger through
     const { default: pino } = await import('pino');
     const silentLogger = pino({ level: 'silent' });
 
     this.sock = makeWASocket({
-      auth:             authState,
-      logger:           silentLogger,
-      browser:          Browsers.ubuntu('Chrome'),
-      connectTimeoutMs: 60000,
+      auth:                  authState,
+      logger:                silentLogger,
+      browser:               Browsers.ubuntu('Chrome'),
+      connectTimeoutMs:      60000,
       defaultQueryTimeoutMs: 30000,
-      // Keep-alive pings
-      keepAliveIntervalMs: 15000,
-      // Print QR to terminal
-      printQRInTerminal: false,
+      keepAliveIntervalMs:   15000,
+      printQRInTerminal:     false,
     });
 
     // ── Events ────────────────────────────────────────────────────────────────
@@ -138,14 +213,28 @@ class WhatsAppService {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        // Show a human-friendly QR in the terminal
+        this._currentQR = qr;
+        // Pre-render QR to base64 PNG for the API endpoint
+        try {
+          this._currentQRPng = await QRCode.toDataURL(qr, {
+            width: 280, margin: 2,
+            color: { dark: '#0f172a', light: '#ffffff' },
+          });
+        } catch (e) {
+          this._currentQRPng = null;
+        }
+
+        // Print to terminal (fallback for SSH access)
         console.log('\n' + '═'.repeat(60));
         console.log('  📱  SCAN THIS QR CODE WITH WHATSAPP ON YOUR PHONE');
         console.log('═'.repeat(60) + '\n');
         qrcode.generate(qr, { small: true });
         console.log('\n' + '═'.repeat(60));
-        console.log('  ⏳  Waiting for scan…');
+        console.log('  ⏳  Waiting for scan… (also visible in Admin Dashboard)');
         console.log('═'.repeat(60) + '\n');
+
+        logger.info('[WhatsApp] QR code generated');
+        await _writeLog('qr_generated');
       }
 
       if (connection === 'close') {
@@ -154,15 +243,25 @@ class WhatsAppService {
           : null;
 
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const reason = shouldReconnect ? `connection_lost (code: ${statusCode})` : 'logged_out_by_phone';
 
-        logger.warn('[WhatsApp] Connection closed', { statusCode, shouldReconnect });
-        this.state = shouldReconnect ? STATE.DISCONNECTED : STATE.NEEDS_REAUTH;
-        this.sock  = null;
+        logger.warn('[WhatsApp] Connection closed', { statusCode, shouldReconnect, reason });
+
+        this.state               = shouldReconnect ? STATE.DISCONNECTED : STATE.NEEDS_REAUTH;
+        this._disconnectReason   = reason;
+        this._lastDisconnectedAt = new Date().toISOString();
+        this._currentQR          = null;
+        this._currentQRPng       = null;
+        this.sock                = null;
+
+        const eventType = statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'disconnected';
+        await _writeLog(eventType, { reason, phoneNumber: this._phoneNumber });
 
         if (statusCode === DisconnectReason.loggedOut) {
-          console.log('\n🔴  WhatsApp logged out — delete the auth folder and restart to re-scan QR.\n');
-          logger.error('[WhatsApp] Logged out — manual re-auth required');
-          return; // do NOT auto-reconnect after a logout
+          console.log('\n🔴  WhatsApp logged out from phone — admin must re-scan QR in dashboard.\n');
+          this._phoneNumber = null;
+          // Don't auto-reconnect — the session is gone; user must re-scan
+          return;
         }
 
         if (config.autoReconnect) {
@@ -173,9 +272,25 @@ class WhatsAppService {
       if (connection === 'open') {
         this.state             = STATE.CONNECTED;
         this.reconnectAttempts = 0;
-        logger.info('[WhatsApp] 🚀 Connected and ready');
-        console.log('\n✅  WhatsApp connected!\n');
-        // Flush any queued messages
+        this._currentQR        = null;
+        this._currentQRPng     = null;
+        this._disconnectReason = null;
+        this._lastConnectedAt  = new Date().toISOString();
+
+        // Parse phone number from Baileys sock.user.id
+        // Format: "919812345678:10@s.whatsapp.net" → "+919812345678"
+        try {
+          const rawId = this.sock?.user?.id || '';
+          const digits = rawId.split(':')[0].split('@')[0];
+          this._phoneNumber = digits ? `+${digits}` : null;
+        } catch { this._phoneNumber = null; }
+
+        logger.info('[WhatsApp] 🚀 Connected', { phone: this._phoneNumber });
+        console.log(`\n✅  WhatsApp connected! Phone: ${this._phoneNumber || 'unknown'}\n`);
+
+        await _writeLog('connected', { phoneNumber: this._phoneNumber });
+
+        // Flush queued messages
         await this._processQueue();
       }
     });
@@ -186,14 +301,9 @@ class WhatsAppService {
   // ── PUBLIC: sendMessage ──────────────────────────────────────────────────────
 
   async sendMessage(chatId, message) {
-    if (!config.enabled) {
-      return { success: false, reason: 'WhatsApp disabled' };
-    }
-    if (!chatId || !message) {
-      throw new Error('[WhatsApp] sendMessage: chatId and message are required');
-    }
+    if (!config.enabled) return { success: false, reason: 'WhatsApp disabled' };
+    if (!chatId || !message) throw new Error('[WhatsApp] sendMessage: chatId and message are required');
 
-    // Dedup
     const dedupKey = `${chatId}::${message.substring(0, 80)}`;
     const dedupExp = this._dedupMap.get(dedupKey);
     if (dedupExp && Date.now() < dedupExp) {
@@ -202,20 +312,12 @@ class WhatsAppService {
     }
     this._dedupMap.set(dedupKey, Date.now() + DEDUP_WINDOW_MS);
 
-    // Rate limit
-    if (!this._checkRateLimit()) {
-      return this._enqueue(chatId, message);
-    }
-
-    // Not ready — queue it
-    if (this.state !== STATE.CONNECTED || !this.sock) {
-      return this._enqueue(chatId, message);
-    }
+    if (!this._checkRateLimit()) return this._enqueue(chatId, message);
+    if (this.state !== STATE.CONNECTED || !this.sock) return this._enqueue(chatId, message);
 
     return this._sendWithRetry(chatId, message);
   }
 
-  /** Convenience: send to configured group */
   async sendToGroup(message) {
     if (!config.groupId) {
       logger.warn('[WhatsApp] No WHATSAPP_GROUP_ID set');
@@ -224,7 +326,6 @@ class WhatsAppService {
     return this.sendMessage(config.groupId, message);
   }
 
-  /** Convenience: send to configured channel */
   async sendToChannel(message) {
     if (!config.channelId) {
       logger.warn('[WhatsApp] No WHATSAPP_CHANNEL_ID set');
@@ -239,24 +340,23 @@ class WhatsAppService {
     if (this.state !== STATE.CONNECTED || !this.sock) {
       throw new Error('[WhatsApp] Client is not connected — cannot fetch chats');
     }
-    // Baileys doesn't have a direct "get all chats" — return contact/group roster
     const groups = await this.sock.groupFetchAllParticipating();
     return Object.values(groups).map(g => ({
-      id:         g.id,
-      name:       g.subject || g.id,
-      isGroup:    true,
+      id:          g.id,
+      name:        g.subject || g.id,
+      isGroup:     true,
       memberCount: g.participants?.length || 0,
     }));
   }
 
-  // ── PUBLIC: getStatus ────────────────────────────────────────────────────────
+  // ── PUBLIC: getStatus (basic — keeps existing callers working) ───────────────
 
   getStatus() {
     return {
       enabled:           config.enabled,
       initialized:       this.isInitialized,
-      state:             this.state,
       ready:             this.state === STATE.CONNECTED,
+      state:             this.state,
       queueLength:       this._queue.length,
       rateLimitCounter:  this._rlCounter,
       rateLimitResetsIn: Math.max(0, this._rlResetAt - Date.now()),
@@ -264,6 +364,26 @@ class WhatsAppService {
       groupConfigured:   !!config.groupId,
       channelConfigured: !!config.channelId,
     };
+  }
+
+  // ── PUBLIC: getDetailedStatus ────────────────────────────────────────────────
+
+  getDetailedStatus() {
+    const masked = this._maskPhone(this._phoneNumber);
+    return {
+      ...this.getStatus(),
+      phoneNumber:         masked,
+      lastConnectedAt:     this._lastConnectedAt,
+      lastDisconnectedAt:  this._lastDisconnectedAt,
+      disconnectReason:    this._disconnectReason,
+      hasQR:               !!this._currentQR,
+    };
+  }
+
+  // ── PUBLIC: getQR (returns base64 PNG or null) ────────────────────────────────
+
+  getQR() {
+    return this._currentQRPng || null;
   }
 
   // ── PUBLIC: destroy ──────────────────────────────────────────────────────────
@@ -283,7 +403,20 @@ class WhatsAppService {
     }
   }
 
-  // ── PRIVATE: reconnect ───────────────────────────────────────────────────────
+  // ── PRIVATE: helpers ─────────────────────────────────────────────────────────
+
+  _maskPhone(phone) {
+    if (!phone) return null;
+    // "+919812345678" → "+91 98XXXXXX78"
+    try {
+      const digits = phone.replace(/^\+/, '');
+      if (digits.length < 6) return phone;
+      const prefix  = digits.slice(0, 2);   // country code (approx)
+      const last2   = digits.slice(-2);
+      const masked  = 'X'.repeat(digits.length - 4);
+      return `+${prefix} ${masked}${last2}`;
+    } catch { return phone; }
+  }
 
   _scheduleReconnect() {
     if (this.reconnectAttempts >= config.maxReconnectAttempts) {
@@ -297,13 +430,13 @@ class WhatsAppService {
     const delay = config.reconnectDelay * this.reconnectAttempts;
     logger.info(`[WhatsApp] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${config.maxReconnectAttempts})`);
 
+    _writeLog('reconnect_attempt', { reason: `attempt ${this.reconnectAttempts}` });
+
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
       this.initialize();
     }, delay);
   }
-
-  // ── PRIVATE: rate-limit ──────────────────────────────────────────────────────
 
   _checkRateLimit() {
     const now = Date.now();
@@ -313,8 +446,6 @@ class WhatsAppService {
     }
     return this._rlCounter < config.rateLimit.maxPerHour;
   }
-
-  // ── PRIVATE: queue ───────────────────────────────────────────────────────────
 
   _enqueue(chatId, message) {
     return new Promise((resolve, reject) => {
@@ -348,8 +479,6 @@ class WhatsAppService {
     this._queueRunning = false;
   }
 
-  // ── PRIVATE: send with retry ─────────────────────────────────────────────────
-
   async _sendWithRetry(chatId, message) {
     const max = config.retry.enabled ? config.retry.maxAttempts : 1;
 
@@ -367,10 +496,7 @@ class WhatsAppService {
         return { success: true, chatId, timestamp: Date.now() };
 
       } catch (err) {
-        logger.error(`[WhatsApp] Send error (attempt ${attempt}/${max})`, {
-          error: err.message, chatId,
-        });
-
+        logger.error(`[WhatsApp] Send error (attempt ${attempt}/${max})`, { error: err.message, chatId });
         if (attempt < max) {
           await new Promise(r => setTimeout(r, config.retry.delayMs));
         } else {

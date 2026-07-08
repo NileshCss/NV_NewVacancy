@@ -355,4 +355,12 @@ router.get('/ollama-health', requireAdmin, ollamaHealth);
 // Manual expire check — accepts service token (GitHub Actions) or super_admin JWT
 router.post('/run-expire', requireServiceOrSuperAdmin, triggerExpire);
 
+// ── WhatsApp connection management ────────────────────────────────────────────
+// GET  /api/admin/whatsapp/status
+// GET  /api/admin/whatsapp/qr
+// GET  /api/admin/whatsapp/logs
+// POST /api/admin/whatsapp/logout
+const whatsappAdminRoutes = require('./whatsapp-admin.routes');
+router.use('/whatsapp', whatsappAdminRoutes);
+
 module.exports = router;
