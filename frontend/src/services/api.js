@@ -221,44 +221,51 @@ export const deleteJob = async (id) => {
   if (error) throw dbError(error)
 }
 
-// ── WHATSAPP EDGE FUNCTION ──────────────────────────────────────
+// ── WHATSAPP BACKEND SERVICE ──────────────────────────────────────
 export const notifyJobOnWhatsApp = async (job, action = 'new') => {
-  console.log(`[notifyJobOnWhatsApp] Triggering WhatsApp Edge Function for job ${job.id}`)
+  console.log(`[notifyJobOnWhatsApp] Triggering backend WhatsApp service for job ${job.id}`)
 
-  // Wrap in a 10-second timeout — supabase.functions.invoke has no built-in timeout.
-  // If the Edge Function is undeployed or hangs, it would block forever without this,
-  // causing the "Saving..." button to never unlock.
-  const invokePromise = supabase.functions.invoke('whatsapp-notify', {
-    body: { action, vacancyData: job },
+  // Wrap in a 15-second timeout
+  const invokePromise = adminFetch('/whatsapp/notify-job', {
+    method: 'POST',
+    body: JSON.stringify({ action, job }),
   })
+
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('WhatsApp notification timed out after 10 seconds')), 10000)
+    setTimeout(() => reject(new Error('WhatsApp notification timed out after 15 seconds')), 15000)
   )
 
-  const { data, error } = await Promise.race([invokePromise, timeoutPromise])
+  try {
+    const data = await Promise.race([invokePromise, timeoutPromise])
 
-  if (error) {
-    console.error('[notifyJobOnWhatsApp] Edge Function Error:', error)
-    throw new Error(error.message || 'Failed to trigger WhatsApp notification')
+    if (!data?.success) {
+      console.error('[notifyJobOnWhatsApp] WhatsApp Backend Error:', data?.error)
+      throw new Error(data?.error || 'Unknown WhatsApp API error')
+    }
+
+    return data
+  } catch (error) {
+    console.error('[notifyJobOnWhatsApp] Request Error:', error)
+    throw error
   }
-
-  if (!data?.success) {
-    console.error('[notifyJobOnWhatsApp] WhatsApp API Error:', data?.error)
-    throw new Error(data?.error || 'Unknown WhatsApp API error')
-  }
-
-  return data
 }
 
 export const testWhatsAppConnection = async () => {
-  const { data, error } = await supabase.functions.invoke('whatsapp-notify', {
-    body: { action: 'test' }
-  })
-  
-  if (error) throw new Error(error.message)
-  if (!data?.success) throw new Error(data?.error)
-  
-  return data
+  try {
+    const data = await adminFetch('/whatsapp/test', {
+      method: 'POST',
+      body: JSON.stringify({ message: `✅ *NewVacancy WhatsApp Bot* is live!\nTest sent at ${new Date().toLocaleString('en-IN')}` }),
+    })
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Unknown WhatsApp API error')
+    }
+
+    return data
+  } catch (error) {
+    console.error('[testWhatsAppConnection] Backend Error:', error)
+    throw error
+  }
 }
 
 // ── NEWS ───────────────────────────────────────────────────────
