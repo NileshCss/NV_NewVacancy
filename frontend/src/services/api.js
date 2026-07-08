@@ -99,7 +99,7 @@ export const addJob = async (job) => {
     vacancies:        !isNaN(vacanciesInt) ? vacanciesInt : null,
     salary_range:     job.salary_range      ? String(job.salary_range).trim()      : null,
     age_limit:        job.age_limit         ? String(job.age_limit).trim()         : null,
-    apply_url:        String(job.apply_url || '').trim(),
+    apply_url:        job.apply_url         ? String(job.apply_url).trim()         : null,
     notification_url: job.notification_url  ? String(job.notification_url).trim()  : null,
     last_date:        job.last_date         || null,
     job_description:  job.description || job.job_description ? String(job.description || job.job_description).trim() : null,
@@ -108,6 +108,10 @@ export const addJob = async (job) => {
     tags:             Array.isArray(job.skill_tags || job.tags) ? (job.skill_tags || job.tags) : [],
     posted_at:        now,
     created_by:       job.created_by         || null,
+    // Required DB fields with safe defaults (DB may have NOT NULL on these)
+    status:           'published',
+    employment_type:  job.employment_type   || 'Full-time',
+    work_mode:        job.work_mode         || 'Office',
   }
 
   console.log('[addJob] payload:', payload)

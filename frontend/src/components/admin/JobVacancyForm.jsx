@@ -196,7 +196,8 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
     title: '', organization: '', location: 'All India',
     salary_range: 'Not Disclosed', apply_url: '', description: '',
     category: 'govt', is_featured: false, visible: true,
-    skill_tags: [], positions: '', qualification: '', age_limit: '', experience: '', last_date: ''
+    skill_tags: [], positions: '', qualification: '', age_limit: '', experience: '', last_date: '',
+    department: '', notification_url: '',
   };
 
   const getInitialValues = () => {
@@ -356,44 +357,32 @@ export default function JobVacancyForm({ job, onClose, onSaved }) {
 
       if (isEdit) {
         const updated = await updateJob(job.id, data);
-        
-        let waError = null;
+        // ── Save succeeded: close modal immediately, notify in background ──
+        toast.success('Vacancy updated successfully');
+        if (onSaved) onSaved();
+        reset(DEFAULT_VALUES);
+        setTimeout(() => onClose(), 300);
+
+        // Fire-and-forget: WhatsApp notification must NEVER block the save path.
+        // The Edge Function may be cold, slow, or undeployed — that's OK.
         if (data.visible) {
-          try {
-            await notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated');
-          } catch (e) {
-            waError = e.message;
-          }
-        }
-        
-        if (waError) {
-          toast.error(`Job updated but WhatsApp notification failed: ${waError}`, { duration: 5000 });
-        } else {
-          toast.success('Vacancy updated successfully');
+          notifyJobOnWhatsApp(updated || { id: job.id, ...data }, 'updated')
+            .catch(e => toast.error(`WhatsApp notification failed (job was saved): ${e.message}`, { duration: 6000 }));
         }
       } else {
         const added = await addJob(data);
-        
-        let waError = null;
+        // ── Save succeeded: close modal immediately, notify in background ──
+        toast.success('Vacancy posted successfully');
+        if (onSaved) onSaved();
+        reset(DEFAULT_VALUES);
+        setTimeout(() => onClose(), 300);
+
+        // Fire-and-forget: WhatsApp notification must NEVER block the save path.
         if (data.visible) {
-          try {
-            await notifyJobOnWhatsApp(added || data, 'new');
-          } catch (e) {
-            waError = e.message;
-          }
-        }
-        
-        if (waError) {
-          toast.error(`Job posted but WhatsApp notification failed: ${waError}`, { duration: 5000 });
-        } else {
-          toast.success('Vacancy posted successfully');
+          notifyJobOnWhatsApp(added || data, 'new')
+            .catch(e => toast.error(`WhatsApp notification failed (job was saved): ${e.message}`, { duration: 6000 }));
         }
       }
-
-      if (onSaved) onSaved();
-      reset(DEFAULT_VALUES); // Fully reset the form state for the next use
-      // Ensure modal closes even if there's a warning
-      setTimeout(() => onClose(), 500);
     } catch (err) {
       console.error('[JobVacancyForm] Error:', err);
       // If it was an AbortError from our API timeout, format it nicely
