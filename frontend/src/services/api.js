@@ -537,150 +537,453 @@ export const toggleSavedJob = async (userId, jobId) => {
 
 // ── EXAM MODULE ────────────────────────────────────────────────
 export const fetchExamCategories = async () => {
-  const res = await adminFetch('/exam/categories', { method: 'GET' })
-  return res.data || []
+  try {
+    const res = await adminFetch('/exam/categories', { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchExamCategories] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('exam_categories').select('*').order('display_order', { ascending: true })
+  if (error) throw dbError(error)
+  return data || []
 }
 
 export const createExamCategory = async (payload) => {
-  const res = await adminFetch('/exam/categories', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/categories', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createExamCategory] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('exam_categories').insert(payload).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const updateExamCategory = async (id, payload) => {
-  const res = await adminFetch(`/exam/categories/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/categories/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateExamCategory] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('exam_categories').update(payload).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteExamCategory = async (id) => {
-  const res = await adminFetch(`/exam/categories/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/categories/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteExamCategory] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('exam_categories').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const fetchExams = async (categoryId = null) => {
-  const query = categoryId ? `?category_id=${categoryId}` : ''
-  const res = await adminFetch(`/exam/exams${query}`, { method: 'GET' })
-  return res.data || []
+  try {
+    const query = categoryId ? `?category_id=${categoryId}` : ''
+    const res = await adminFetch(`/exam/exams${query}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchExams] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  let query = supabase.from('exams').select('*, exam_categories(name, slug)').order('created_at', { ascending: false })
+  if (categoryId) query = query.eq('category_id', categoryId)
+  const { data, error } = await query
+  if (error) throw dbError(error)
+  return data || []
 }
 
 export const createExam = async (payload) => {
-  const res = await adminFetch('/exam/exams', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/exams', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createExam] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('exams').insert({ ...payload, created_by: session?.user?.id }).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const updateExam = async (id, payload) => {
-  const res = await adminFetch(`/exam/exams/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/exams/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateExam] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('exams').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteExam = async (id) => {
-  const res = await adminFetch(`/exam/exams/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/exams/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteExam] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('exams').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const fetchSubjects = async (examId) => {
-  const res = await adminFetch(`/exam/subjects?exam_id=${examId}`, { method: 'GET' })
-  return res.data || []
+  try {
+    const res = await adminFetch(`/exam/subjects?exam_id=${examId}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchSubjects] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('subjects').select('*').eq('exam_id', examId).order('display_order', { ascending: true })
+  if (error) throw dbError(error)
+  return data || []
 }
 
 export const createSubject = async (payload) => {
-  const res = await adminFetch('/exam/subjects', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/subjects', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createSubject] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('subjects').insert(payload).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const updateSubject = async (id, payload) => {
-  const res = await adminFetch(`/exam/subjects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/subjects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateSubject] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('subjects').update(payload).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteSubject = async (id) => {
-  const res = await adminFetch(`/exam/subjects/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/subjects/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteSubject] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('subjects').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const reorderSubjects = async (items) => {
-  const res = await adminFetch('/exam/subjects/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
-  return res
+  try {
+    const res = await adminFetch('/exam/subjects/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[reorderSubjects] Backend offline or error, falling back to direct Supabase reordering:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  const promises = items.map(item => 
+    freshClient.from('subjects').update({ display_order: item.display_order }).eq('id', item.id)
+  )
+  await Promise.all(promises)
+  return { success: true }
 }
 
 export const fetchChapters = async (subjectId) => {
-  const res = await adminFetch(`/exam/chapters?subject_id=${subjectId}`, { method: 'GET' })
-  return res.data || []
+  try {
+    const res = await adminFetch(`/exam/chapters?subject_id=${subjectId}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchChapters] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('chapters').select('*').eq('subject_id', subjectId).order('display_order', { ascending: true })
+  if (error) throw dbError(error)
+  return data || []
 }
 
 export const createChapter = async (payload) => {
-  const res = await adminFetch('/exam/chapters', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/chapters', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createChapter] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('chapters').insert(payload).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const updateChapter = async (id, payload) => {
-  const res = await adminFetch(`/exam/chapters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/chapters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateChapter] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('chapters').update(payload).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteChapter = async (id) => {
-  const res = await adminFetch(`/exam/chapters/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/chapters/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteChapter] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('chapters').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const reorderChapters = async (items) => {
-  const res = await adminFetch('/exam/chapters/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
-  return res
+  try {
+    const res = await adminFetch('/exam/chapters/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[reorderChapters] Backend offline or error, falling back to direct Supabase reordering:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  const promises = items.map(item => 
+    freshClient.from('chapters').update({ display_order: item.display_order }).eq('id', item.id)
+  )
+  await Promise.all(promises)
+  return { success: true }
 }
 
 export const fetchTopics = async (chapterId) => {
-  const res = await adminFetch(`/exam/topics?chapter_id=${chapterId}`, { method: 'GET' })
-  return res.data || []
+  try {
+    const res = await adminFetch(`/exam/topics?chapter_id=${chapterId}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchTopics] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('topics').select('*').eq('chapter_id', chapterId).order('display_order', { ascending: true })
+  if (error) throw dbError(error)
+  return data || []
 }
 
 export const createTopic = async (payload) => {
-  const res = await adminFetch('/exam/topics', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/topics', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createTopic] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('topics').insert(payload).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const updateTopic = async (id, payload) => {
-  const res = await adminFetch(`/exam/topics/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/topics/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateTopic] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('topics').update(payload).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteTopic = async (id) => {
-  const res = await adminFetch(`/exam/topics/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/topics/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteTopic] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('topics').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const reorderTopics = async (items) => {
-  const res = await adminFetch('/exam/topics/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
-  return res
+  try {
+    const res = await adminFetch('/exam/topics/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[reorderTopics] Backend offline or error, falling back to direct Supabase reordering:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  const promises = items.map(item => 
+    freshClient.from('topics').update({ display_order: item.display_order }).eq('id', item.id)
+  )
+  await Promise.all(promises)
+  return { success: true }
 }
 
 export const fetchQuestions = async (params = {}) => {
-  const query = new URLSearchParams(params).toString()
-  const res = await adminFetch(`/exam/questions?${query}`, { method: 'GET' })
-  return res.data || []
+  try {
+    const query = new URLSearchParams(params).toString()
+    const res = await adminFetch(`/exam/questions?${query}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchQuestions] Backend offline or error, falling back to direct Supabase query:', err.message)
+  }
+  let query = supabase.from('questions').select('*, question_exam_map(*)')
+  if (params.difficulty) query = query.eq('difficulty', params.difficulty)
+  if (params.status) query = query.eq('status', params.status)
+  if (params.search) query = query.ilike('question_text', `%${params.search}%`)
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(100)
+  if (error) throw dbError(error)
+  
+  let results = data || []
+  if (params.exam_id) {
+    results = results.filter(q => q.question_exam_map?.some(map => map.exam_id === params.exam_id))
+  }
+  return results
 }
 
 export const fetchQuestion = async (id) => {
-  const res = await adminFetch(`/exam/questions/${id}`, { method: 'GET' })
-  return res.data
+  try {
+    const res = await adminFetch(`/exam/questions/${id}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchQuestion] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('questions').select('*, question_exam_map(*)').eq('id', id).single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const createQuestion = async (payload) => {
-  const res = await adminFetch('/exam/questions', { method: 'POST', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/questions', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createQuestion] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const mappings = payload.mappings || []
+  const questionPayload = { ...payload }
+  delete questionPayload.mappings
+  const { data, error } = await freshClient.from('questions').insert({ ...questionPayload, created_by: session?.user?.id }).select().single()
+  if (error) throw dbError(error)
+  if (mappings.length > 0) {
+    const maps = mappings.map(m => ({ ...m, question_id: data.id }))
+    await freshClient.from('question_exam_map').insert(maps)
+  }
+  return data
 }
 
 export const updateQuestion = async (id, payload) => {
-  const res = await adminFetch(`/exam/questions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/questions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateQuestion] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const mappings = payload.mappings
+  const questionPayload = { ...payload }
+  delete questionPayload.mappings
+  const { data, error } = await freshClient.from('questions').update({ ...questionPayload, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  if (mappings !== undefined) {
+    await freshClient.from('question_exam_map').delete().eq('question_id', id)
+    if (mappings.length > 0) {
+      const maps = mappings.map(m => ({ ...m, question_id: id }))
+      await freshClient.from('question_exam_map').insert(maps)
+    }
+  }
+  return data
 }
 
 export const updateQuestionStatus = async (id, status) => {
-  const res = await adminFetch(`/exam/questions/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
-  return res.data
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/questions/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateQuestionStatus] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('questions').update({ status, reviewed_by: session?.user?.id, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
 }
 
 export const deleteQuestion = async (id) => {
-  const res = await adminFetch(`/exam/questions/${id}`, { method: 'DELETE' })
-  return res
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/questions/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteQuestion] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('questions').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
 }
 
 export const bulkImportQuestions = async (csvData, mappings) => {
@@ -692,4 +995,5 @@ export const extractQuestionsAI = async (rawText) => {
   const res = await adminFetch('/exam/questions/extract-ai', { method: 'POST', body: JSON.stringify({ rawText }) })
   return res.data
 }
+
 
