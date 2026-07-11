@@ -12,14 +12,10 @@ exports.listQuestions = async (req, res) => {
   try {
     const { exam_id, subject_id, chapter_id, topic_id, difficulty, status, search } = req.query;
 
-    const isAdmin = req.user && ['admin', 'super_admin'].includes(req.user.role);
-    const client = isAdmin ? supabaseAdmin : supabaseRegular;
-
+    const client = getClientForRequest(req);
     let query = client.from('questions').select('*, question_exam_map(exam_id, subject_id, chapter_id, topic_id)');
 
-    if (!isAdmin) {
-      query = query.eq('status', 'approved');
-    } else if (status) {
+    if (status) {
       query = query.eq('status', status);
     }
 
@@ -27,8 +23,6 @@ exports.listQuestions = async (req, res) => {
     if (search) query = query.ilike('question_text', `%${search}%`);
     if (req.query.tag) query = query.contains('tags', [req.query.tag]);
 
-    // We fetch and then filter locally for relations if needed, 
-    // or use inner join if Supabase supports it, but post-filtering is easier here for a quick mock.
     const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
 
@@ -58,7 +52,7 @@ exports.listQuestions = async (req, res) => {
 exports.getQuestion = async (req, res) => {
   try {
     const { id } = req.params;
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) ? supabaseAdmin : supabaseRegular;
+    const client = getClientForRequest(req);
     const { data, error } = await client.from('questions').select('*, question_exam_map(*)').eq('id', id).single();
     
     if (error) throw error;
@@ -75,9 +69,10 @@ exports.getQuestion = async (req, res) => {
 exports.createQuestion = async (req, res) => {
   try {
     const payload = { ...req.body, created_by: req.user.id };
+    const client = getClientForRequest(req);
     
     // Check for duplicates
-    const { data: existing } = await supabaseAdmin.from('questions').select('id, question_text').limit(1000);
+    const { data: existing } = await client.from('questions').select('id, question_text').limit(1000);
     if (existing && existing.length > 0) {
       const isDuplicate = similarityService.checkDuplicate(payload.question_text, existing);
       if (isDuplicate) {
@@ -90,12 +85,12 @@ exports.createQuestion = async (req, res) => {
     const mappings = payload.mappings || [];
     delete payload.mappings;
 
-    const { data: qData, error: qError } = await supabaseAdmin.from('questions').insert([payload]).select().single();
+    const { data: qData, error: qError } = await client.from('questions').insert([payload]).select().single();
     if (qError) throw qError;
 
     if (mappings.length > 0) {
       const mapsToInsert = mappings.map(m => ({ ...m, question_id: qData.id }));
-      const { error: mapError } = await supabaseAdmin.from('question_exam_map').insert(mapsToInsert);
+      const { error: mapError } = await client.from('question_exam_map').insert(mapsToInsert);
       if (mapError) throw mapError;
     }
 
@@ -113,16 +108,17 @@ exports.updateQuestion = async (req, res) => {
     const payload = { ...req.body, updated_at: new Date().toISOString() };
     const mappings = payload.mappings;
     delete payload.mappings;
+    const client = getClientForRequest(req);
 
-    const { data, error } = await supabaseAdmin.from('questions').update(payload).eq('id', id).select().single();
+    const { data, error } = await client.from('questions').update(payload).eq('id', id).select().single();
     if (error) throw error;
 
     if (mappings !== undefined) {
       // clear old mappings and insert new
-      await supabaseAdmin.from('question_exam_map').delete().eq('question_id', id);
+      await client.from('question_exam_map').delete().eq('question_id', id);
       if (mappings.length > 0) {
         const mapsToInsert = mappings.map(m => ({ ...m, question_id: id }));
-        await supabaseAdmin.from('question_exam_map').insert(mapsToInsert);
+        await client.from('question_exam_map').insert(mapsToInsert);
       }
     }
 
@@ -141,8 +137,9 @@ exports.updateQuestionStatus = async (req, res) => {
     if (!['approved', 'rejected', 'draft'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
+    const client = getClientForRequest(req);
 
-    const { data, error } = await supabaseAdmin.from('questions')
+    const { data, error } = await client.from('questions')
       .update({ status, reviewed_by: req.user.id, updated_at: new Date().toISOString() })
       .eq('id', id).select().single();
 
@@ -158,7 +155,8 @@ exports.updateQuestionStatus = async (req, res) => {
 exports.deleteQuestion = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabaseAdmin.from('questions').delete().eq('id', id);
+    const client = getClientForRequest(req);
+    const { error } = await client.from('questions').delete().eq('id', id);
     if (error) throw error;
     res.json({ success: true, message: 'Question deleted' });
   } catch (err) {
@@ -178,14 +176,15 @@ exports.bulkImportCsv = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid CSV format' });
     }
 
-    const { data: existing } = await supabaseAdmin.from('questions').select('id, question_text').limit(5000);
+    const client = getClientForRequest(req);
+    const { data: existing } = await client.from('questions').select('id, question_text').limit(5000);
     let successCount = 0;
     let duplicateCount = 0;
     let failedCount = 0;
     let errorsList = [];
 
     // Log the import
-    const { data: logEntry } = await supabaseAdmin.from('question_import_logs').insert([{
+    const { data: logEntry } = await client.from('question_import_logs').insert([{
       imported_by: req.user.id,
       source_type: 'csv',
       total_processed: parsed.data.length
@@ -213,12 +212,12 @@ exports.bulkImportCsv = async (req, res) => {
           created_by: req.user.id
         };
 
-        const { data: inserted, error: qErr } = await supabaseAdmin.from('questions').insert([qPayload]).select().single();
+        const { data: inserted, error: qErr } = await client.from('questions').insert([qPayload]).select().single();
         if (qErr) throw qErr;
 
         if (mappings && mappings.length > 0) {
           const m = mappings.map(x => ({ ...x, question_id: inserted.id }));
-          await supabaseAdmin.from('question_exam_map').insert(m);
+          await client.from('question_exam_map').insert(m);
         }
         successCount++;
       } catch (err) {
@@ -227,7 +226,7 @@ exports.bulkImportCsv = async (req, res) => {
       }
     }
 
-    await supabaseAdmin.from('question_import_logs').update({
+    await client.from('question_import_logs').update({
       success_count: successCount,
       failed_count: failedCount,
       duplicate_count: duplicateCount,
