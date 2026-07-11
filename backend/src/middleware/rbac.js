@@ -47,6 +47,25 @@ const getEffectiveRole = (profile, email) => {
 // MIDDLEWARE: attachUser
 // Validates the Bearer JWT, fetches profile, attaches req.user with role.
 // ─────────────────────────────────────────────────────────────────────────────
+const getClientForRequest = (req) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (token) {
+    return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    });
+  }
+  return supabaseAdmin;
+};
+
 async function attachUser(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace('Bearer ', '').trim();
@@ -62,12 +81,36 @@ async function attachUser(req, res, next) {
       return res.status(401).json({ success: false, error: 'Invalid or expired token', code: 'AUTH_INVALID' });
     }
 
-    // Fetch profile (use service-role so RLS doesn't block)
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email, role, full_name, is_blocked')
-      .eq('id', user.id)
-      .single();
+    // Fetch profile (try service-role first, fall back to user-authenticated token client)
+    let profile = null;
+    try {
+      const { data, error: profileErr } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, role, full_name, is_blocked')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileErr) {
+        if (profileErr.message && profileErr.message.includes('Invalid API key')) {
+          const reqClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false },
+            global: { headers: { Authorization: `Bearer ${token}` } }
+          });
+          const { data: fallbackProfile } = await reqClient
+            .from('profiles')
+            .select('id, email, role, full_name, is_blocked')
+            .eq('id', user.id)
+            .single();
+          profile = fallbackProfile;
+        } else {
+          throw profileErr;
+        }
+      } else {
+        profile = data;
+      }
+    } catch (fetchErr) {
+      console.warn('[RBAC] profile fetch error:', fetchErr.message);
+    }
 
     if (profile?.is_blocked) {
       return res.status(403).json({ success: false, error: 'Account suspended', code: 'ACCOUNT_BLOCKED' });
@@ -170,4 +213,5 @@ module.exports = {
   ROLE_RANK,
   supabaseAdmin,
   supabaseRegular,
+  getClientForRequest,
 };

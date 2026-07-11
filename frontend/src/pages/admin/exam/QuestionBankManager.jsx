@@ -513,6 +513,23 @@ export default function QuestionBankManager() {
                     </div>
                   )}
 
+                  {/* Parsing / Insertion Errors */}
+                  {importSummary.errors && importSummary.errors.length > 0 && (
+                    <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/30 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-bold text-sm">
+                        <AlertCircle size={18} />
+                        <span>Parsing / Upload Errors ({importSummary.errors.length})</span>
+                      </div>
+                      <div className="max-h-[150px] overflow-y-auto pr-2 space-y-1.5 text-xs text-red-800 dark:text-red-400 font-mono">
+                        {importSummary.errors.map((err, idx) => (
+                          <div key={idx} className="border-b border-[var(--border)]/30 pb-1 last:border-b-0">
+                            {err}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Footer Actions */}
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-[var(--border)]">
                     <button

@@ -1,6 +1,6 @@
 'use strict';
 
-const { supabaseAdmin, supabaseRegular } = require('../../middleware/rbac');
+const { supabaseAdmin, supabaseRegular, getClientForRequest } = require('../../middleware/rbac');
 const logger = require('../../utils/logger');
 const similarityService = require('../../services/similarityService');
 const questionExtractorService = require('../../services/questionExtractorService');
@@ -262,6 +262,7 @@ exports.importFile = async (req, res) => {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
+    const client = getClientForRequest(req);
     const filename = req.file.originalname;
     const ext = filename.split('.').pop().toLowerCase();
     
@@ -292,10 +293,10 @@ exports.importFile = async (req, res) => {
     }
 
     // Load existing questions for duplicate checks
-    const { data: existingQuestions } = await supabaseAdmin.from('questions').select('id, question_text');
+    const { data: existingQuestions } = await client.from('questions').select('id, question_text');
 
     // Create import log entry
-    const { data: logEntry, error: logErr } = await supabaseAdmin.from('question_import_logs').insert([{
+    const { data: logEntry, error: logErr } = await client.from('question_import_logs').insert([{
       imported_by: req.user.id,
       filename,
       source_type: sourceType,
@@ -370,7 +371,7 @@ exports.importFile = async (req, res) => {
                   tags: [`batch_${logEntry.id}`]
                 };
 
-                const { data: inserted, error: qErr } = await supabaseAdmin.from('questions').insert([qPayload]).select().single();
+                const { data: inserted, error: qErr } = await client.from('questions').insert([qPayload]).select().single();
                 if (qErr) throw qErr;
 
                 successCount++;
@@ -387,16 +388,16 @@ exports.importFile = async (req, res) => {
       }
 
       // Update total processed in log
-      await supabaseAdmin.from('question_import_logs').update({
+      await client.from('question_import_logs').update({
         total_processed: totalExtracted
       }).eq('id', logEntry.id);
 
     } else {
       // Excel/CSV Processing
       // Fetch taxonomy data for resolution
-      const { data: dbExams } = await supabaseAdmin.from('exams').select('id, name');
-      const { data: dbSubjects } = await supabaseAdmin.from('subjects').select('id, name, exam_id');
-      const { data: dbTopics } = await supabaseAdmin.from('topics').select('id, name, subject_id');
+      const { data: dbExams } = await client.from('exams').select('id, name');
+      const { data: dbSubjects } = await client.from('subjects').select('id, name, exam_id');
+      const { data: dbTopics } = await client.from('topics').select('id, name, subject_id');
 
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
@@ -497,12 +498,12 @@ exports.importFile = async (req, res) => {
             tags: tagsList
           };
 
-          const { data: inserted, error: qErr } = await supabaseAdmin.from('questions').insert([qPayload]).select().single();
+          const { data: inserted, error: qErr } = await client.from('questions').insert([qPayload]).select().single();
           if (qErr) throw qErr;
 
           // Mapping
           if (resolvedExam) {
-            await supabaseAdmin.from('question_exam_map').insert([{
+            await client.from('question_exam_map').insert([{
               question_id: inserted.id,
               exam_id: resolvedExam.id,
               subject_id: resolvedSubject?.id || null,
@@ -519,7 +520,7 @@ exports.importFile = async (req, res) => {
     }
 
     // Save logs final results
-    await supabaseAdmin.from('question_import_logs').update({
+    await client.from('question_import_logs').update({
       success_count: successCount,
       failed_count: failedCount,
       duplicate_count: duplicateCount,
@@ -534,7 +535,8 @@ exports.importFile = async (req, res) => {
         duplicateCount,
         failedCount,
         unresolvedRefs,
-        logId: logEntry.id
+        logId: logEntry.id,
+        errors: errorsList
       }
     });
 
