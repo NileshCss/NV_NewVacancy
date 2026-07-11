@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { fetchExams, fetchSubjects, fetchChapters, fetchTopics, createTopic, updateTopic, deleteTopic, reorderTopics } from '../../../services/api'
+import { fetchExams, fetchSubjects, fetchTopics, createTopic, updateTopic, deleteTopic, reorderTopics } from '../../../services/api'
 import { Edit2, Trash2, Plus, Loader2, GripVertical, ChevronRight, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
@@ -35,12 +35,10 @@ function SortableItem({ id, topic, onEdit, onDelete }) {
 export default function TopicsManager() {
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
-  const [chapters, setChapters] = useState([])
   const [topics, setTopics] = useState([])
   
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
-  const [selectedChapterId, setSelectedChapterId] = useState('')
   const [loading, setLoading] = useState(true)
   
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -67,17 +65,10 @@ export default function TopicsManager() {
   }, [selectedExamId])
 
   useEffect(() => {
-    if (!selectedSubjectId) return;
-    fetchChapters(selectedSubjectId).then(data => {
-      setChapters(data); if(data.length) setSelectedChapterId(data[0].id); else { setSelectedChapterId(''); setLoading(false) }
-    })
-  }, [selectedSubjectId])
-
-  useEffect(() => {
-    if (!selectedChapterId) { setTopics([]); setLoading(false); return }
+    if (!selectedSubjectId) { setTopics([]); setLoading(false); return }
     setLoading(true)
-    fetchTopics(selectedChapterId).then(data => setTopics(data)).catch(()=>toast.error('Error')).finally(()=>setLoading(false))
-  }, [selectedChapterId])
+    fetchTopics(selectedSubjectId).then(data => setTopics(data)).catch(()=>toast.error('Error')).finally(()=>setLoading(false))
+  }, [selectedSubjectId])
 
   const handleDragEnd = async (event) => {
     const { active, over } = event
@@ -93,7 +84,7 @@ export default function TopicsManager() {
       toast.success('Order saved')
     } catch (err) {
       toast.error('Failed to save order')
-      fetchTopics(selectedChapterId).then(setTopics)
+      fetchTopics(selectedSubjectId).then(setTopics)
     }
   }
 
@@ -117,10 +108,10 @@ export default function TopicsManager() {
         await updateTopic(editingTopic.id, formData)
         toast.success('Topic updated')
       } else {
-        await createTopic({ ...formData, chapter_id: selectedChapterId, display_order: topics.length })
+        await createTopic({ ...formData, subject_id: selectedSubjectId, display_order: topics.length })
         toast.success('Topic created')
       }
-      setTopics(await fetchTopics(selectedChapterId))
+      setTopics(await fetchTopics(selectedSubjectId))
       setIsModalOpen(false)
     } catch (err) {
       toast.error(err.message || 'Error saving topic')
@@ -134,7 +125,7 @@ export default function TopicsManager() {
     try {
       await deleteTopic(id)
       toast.success('Topic deleted')
-      setTopics(await fetchTopics(selectedChapterId))
+      setTopics(await fetchTopics(selectedSubjectId))
     } catch (err) {
       toast.error('Failed to delete topic')
     }
@@ -147,7 +138,7 @@ export default function TopicsManager() {
           <h2 className="text-xl font-bold text-[var(--text-primary)]">Topics</h2>
           <p className="text-sm text-[var(--text-muted)]">Manage syllabus topics and study material.</p>
         </div>
-        <button onClick={() => handleOpenModal()} disabled={!selectedChapterId} className="btn-primary flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={() => handleOpenModal()} disabled={!selectedSubjectId} className="btn-primary flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
           <Plus size={18} /> Add Topic
         </button>
       </div>
@@ -162,18 +153,13 @@ export default function TopicsManager() {
           <option value="" disabled>{subjects.length ? "Select Subject" : "No Subjects"}</option>
           {subjects.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
         </select>
-        <ChevronRight size={16} className="text-[var(--text-muted)] hidden sm:block" />
-        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px]" value={selectedChapterId} onChange={e => setSelectedChapterId(e.target.value)} disabled={!chapters.length}>
-          <option value="" disabled>{chapters.length ? "Select Chapter" : "No Chapters"}</option>
-          {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
       </div>
 
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-500" /></div>
-        ) : !selectedChapterId ? (
-          <div className="p-8 text-center text-[var(--text-muted)]">Please select up to a chapter.</div>
+        ) : !selectedSubjectId ? (
+          <div className="p-8 text-center text-[var(--text-muted)]">Please select a subject.</div>
         ) : topics.length === 0 ? (
           <div className="p-8 text-center text-[var(--text-muted)]">No topics found. Add one above.</div>
         ) : (

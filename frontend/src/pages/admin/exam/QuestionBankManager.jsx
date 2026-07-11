@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { fetchQuestions, fetchExams, fetchSubjects, fetchChapters, fetchTopics, createQuestion, updateQuestion, updateQuestionStatus, deleteQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
+import { fetchQuestions, fetchExams, fetchSubjects, fetchTopics, createQuestion, updateQuestion, updateQuestionStatus, deleteQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
 import { Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet, Filter, Search, ChevronRight, Upload, File, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react'
 import QuestionEditor from './QuestionEditor'
 import toast from 'react-hot-toast'

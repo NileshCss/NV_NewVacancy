@@ -48,19 +48,10 @@ CREATE TABLE IF NOT EXISTS public.subjects (
   created_at timestamptz DEFAULT now()
 );
 
--- 4. chapters
-CREATE TABLE IF NOT EXISTS public.chapters (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id uuid REFERENCES public.subjects(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  display_order int DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
-
 -- 5. topics
 CREATE TABLE IF NOT EXISTS public.topics (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  chapter_id uuid REFERENCES public.chapters(id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES public.subjects(id) ON DELETE CASCADE,
   name text NOT NULL,
   description text,
   notes_rich_text text,
@@ -79,14 +70,12 @@ CREATE TABLE IF NOT EXISTS public.topics (
 CREATE INDEX IF NOT EXISTS idx_exams_category ON public.exams(category_id);
 CREATE INDEX IF NOT EXISTS idx_exams_status ON public.exams(status);
 CREATE INDEX IF NOT EXISTS idx_subjects_exam ON public.subjects(exam_id);
-CREATE INDEX IF NOT EXISTS idx_chapters_subject ON public.chapters(subject_id);
-CREATE INDEX IF NOT EXISTS idx_topics_chapter ON public.topics(chapter_id);
+CREATE INDEX IF NOT EXISTS idx_topics_subject ON public.topics(subject_id);
 
 -- RLS for Phase 1
 ALTER TABLE public.exam_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.topics ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if running multiple times
@@ -96,8 +85,6 @@ DROP POLICY IF EXISTS "public read published exams" ON public.exams;
 DROP POLICY IF EXISTS "admin manage exams" ON public.exams;
 DROP POLICY IF EXISTS "public read subjects" ON public.subjects;
 DROP POLICY IF EXISTS "admin manage subjects" ON public.subjects;
-DROP POLICY IF EXISTS "public read chapters" ON public.chapters;
-DROP POLICY IF EXISTS "admin manage chapters" ON public.chapters;
 DROP POLICY IF EXISTS "public read topics" ON public.topics;
 DROP POLICY IF EXISTS "admin manage topics" ON public.topics;
 
@@ -105,14 +92,12 @@ DROP POLICY IF EXISTS "admin manage topics" ON public.topics;
 CREATE POLICY "public read exam_categories" ON public.exam_categories FOR SELECT USING (true);
 CREATE POLICY "public read published exams" ON public.exams FOR SELECT USING (status = 'published');
 CREATE POLICY "public read subjects" ON public.subjects FOR SELECT USING (enabled = true);
-CREATE POLICY "public read chapters" ON public.chapters FOR SELECT USING (true);
 CREATE POLICY "public read topics" ON public.topics FOR SELECT USING (true);
 
 -- Admin Manage Policies
 CREATE POLICY "admin manage exam_categories" ON public.exam_categories FOR ALL USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
 CREATE POLICY "admin manage exams" ON public.exams FOR ALL USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
 CREATE POLICY "admin manage subjects" ON public.subjects FOR ALL USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
-CREATE POLICY "admin manage chapters" ON public.chapters FOR ALL USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
 CREATE POLICY "admin manage topics" ON public.topics FOR ALL USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
 
 
@@ -158,9 +143,8 @@ CREATE TABLE IF NOT EXISTS public.question_exam_map (
   question_id uuid REFERENCES public.questions(id) ON DELETE CASCADE,
   exam_id uuid REFERENCES public.exams(id) ON DELETE CASCADE,
   subject_id uuid REFERENCES public.subjects(id) ON DELETE SET NULL,
-  chapter_id uuid REFERENCES public.chapters(id) ON DELETE SET NULL,
   topic_id uuid REFERENCES public.topics(id) ON DELETE SET NULL,
-  UNIQUE (question_id, exam_id, subject_id, chapter_id, topic_id)
+  UNIQUE (question_id, exam_id, subject_id, topic_id)
 );
 
 -- 3. question_import_logs
@@ -208,7 +192,6 @@ CREATE POLICY "admin manage import logs" ON public.question_import_logs FOR ALL 
 GRANT ALL ON public.exam_categories TO service_role;
 GRANT ALL ON public.exams TO service_role;
 GRANT ALL ON public.subjects TO service_role;
-GRANT ALL ON public.chapters TO service_role;
 GRANT ALL ON public.topics TO service_role;
 GRANT ALL ON public.questions TO service_role;
 GRANT ALL ON public.question_exam_map TO service_role;

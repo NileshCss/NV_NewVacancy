@@ -396,8 +396,7 @@ exports.importFile = async (req, res) => {
       // Fetch taxonomy data for resolution
       const { data: dbExams } = await supabaseAdmin.from('exams').select('id, name');
       const { data: dbSubjects } = await supabaseAdmin.from('subjects').select('id, name, exam_id');
-      const { data: dbChapters } = await supabaseAdmin.from('chapters').select('id, name, subject_id');
-      const { data: dbTopics } = await supabaseAdmin.from('topics').select('id, name, chapter_id');
+      const { data: dbTopics } = await supabaseAdmin.from('topics').select('id, name, subject_id');
 
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
@@ -421,15 +420,9 @@ exports.importFile = async (req, res) => {
             if (!resolvedSubject) unresolvedRefs.push({ row: i + 1, type: 'subject', name: row.subject_name });
           }
 
-          let resolvedChapter = null;
-          if (resolvedSubject && row.chapter_name) {
-            resolvedChapter = dbChapters?.find(c => c.subject_id === resolvedSubject.id && c.name.trim().toLowerCase() === String(row.chapter_name).trim().toLowerCase());
-            if (!resolvedChapter) unresolvedRefs.push({ row: i + 1, type: 'chapter', name: row.chapter_name });
-          }
-
           let resolvedTopic = null;
-          if (resolvedChapter && row.topic_name) {
-            resolvedTopic = dbTopics?.find(t => t.chapter_id === resolvedChapter.id && t.name.trim().toLowerCase() === String(row.topic_name).trim().toLowerCase());
+          if (resolvedSubject && row.topic_name) {
+            resolvedTopic = dbTopics?.find(t => t.subject_id === resolvedSubject.id && t.name.trim().toLowerCase() === String(row.topic_name).trim().toLowerCase());
             if (!resolvedTopic) unresolvedRefs.push({ row: i + 1, type: 'topic', name: row.topic_name });
           }
 
@@ -513,7 +506,6 @@ exports.importFile = async (req, res) => {
               question_id: inserted.id,
               exam_id: resolvedExam.id,
               subject_id: resolvedSubject?.id || null,
-              chapter_id: resolvedChapter?.id || null,
               topic_id: resolvedTopic?.id || null
             }]);
           }

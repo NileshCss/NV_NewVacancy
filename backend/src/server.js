@@ -19,7 +19,6 @@ const assistantRoutes  = require('./routes/assistant.routes');
 const examCategoriesRoutes = require('./routes/exam/examCategories.routes');
 const examsRoutes          = require('./routes/exam/exams.routes');
 const subjectsRoutes       = require('./routes/exam/subjects.routes');
-const chaptersRoutes       = require('./routes/exam/chapters.routes');
 const topicsRoutes         = require('./routes/exam/topics.routes');
 const questionsRoutes      = require('./routes/exam/questions.routes');
 const sitemapRoutes    = require('./routes/sitemap');
@@ -72,7 +71,6 @@ app.use('/api/assistant',  assistantRoutes);
 app.use('/api/exam/categories', examCategoriesRoutes);
 app.use('/api/exam/exams', examsRoutes);
 app.use('/api/exam/subjects', subjectsRoutes);
-app.use('/api/exam/chapters', chaptersRoutes);
 app.use('/api/exam/topics', topicsRoutes);
 app.use('/api/exam/questions', questionsRoutes);
 app.use('/',               sitemapRoutes);   // /sitemap.xml, /robots.txt

@@ -5,8 +5,8 @@ const logger = require('../../utils/logger');
 
 exports.listTopics = async (req, res) => {
   try {
-    const { chapter_id } = req.query;
-    if (!chapter_id) return res.status(400).json({ success: false, error: 'chapter_id is required' });
+    const { subject_id } = req.query;
+    if (!subject_id) return res.status(400).json({ success: false, error: 'subject_id is required' });
 
     const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
         ? supabaseAdmin 
@@ -15,7 +15,7 @@ exports.listTopics = async (req, res) => {
     const { data, error } = await client
       .from('topics')
       .select('*')
-      .eq('chapter_id', chapter_id)
+      .eq('subject_id', subject_id)
       .order('display_order', { ascending: true })
       .order('created_at', { ascending: true });
 
@@ -52,13 +52,13 @@ exports.getTopic = async (req, res) => {
 
 exports.createTopic = async (req, res) => {
   try {
-    const { chapter_id, name, description, notes_rich_text, formula, diagrams, interview_tips, revision_notes, important_points, pdf_url, display_order } = req.body;
-    if (!chapter_id || !name) return res.status(400).json({ success: false, error: 'chapter_id and name are required' });
+    const { subject_id, name, description, notes_rich_text, formula, diagrams, interview_tips, revision_notes, important_points, pdf_url, display_order } = req.body;
+    if (!subject_id || !name) return res.status(400).json({ success: false, error: 'subject_id and name are required' });
 
     const { data, error } = await supabaseAdmin
       .from('topics')
       .insert([{ 
-        chapter_id, name, description, notes_rich_text, formula, 
+        subject_id, name, description, notes_rich_text, formula, 
         diagrams: diagrams || [], interview_tips, revision_notes, 
         important_points, pdf_url, display_order 
       }])

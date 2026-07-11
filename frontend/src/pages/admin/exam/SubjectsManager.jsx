@@ -119,7 +119,7 @@ export default function SubjectsManager() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure? All chapters inside will be deleted.')) return
+    if (!confirm('Are you sure? All topics inside will be deleted.')) return
     try {
       await deleteSubject(id)
       toast.success('Subject deleted')
