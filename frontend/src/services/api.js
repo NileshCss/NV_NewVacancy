@@ -1018,6 +1018,9 @@ export const importQuestionsFile = async (file, examId) => {
   
   const formData = new FormData()
   formData.append('file', file)
+  if (examId) {
+    formData.append('examId', examId)
+  }
   
   const res = await fetch(`${apiBase}/exam/questions/import-file`, {
     method: 'POST',
