@@ -22,6 +22,9 @@ import InternshipsPage    from './pages/InternshipsPage'
 import CompanyDirectoryPage from './pages/CompanyDirectoryPage'
 import AssistantPage      from './pages/AssistantPage'
 import JobDetailPage      from './pages/JobDetailPage'
+import ExamDirectory      from './pages/exam/ExamDirectory'
+import ExamLandingPage    from './pages/exam/ExamLandingPage'
+
 
 // Pages that don't show the Footer
 const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password'])
@@ -101,8 +104,10 @@ export default function App() {
       case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback': return <AuthCallbackPage />
       case 'reset-password': return <ResetPasswordPage />
+      case 'exams':          return <ExamDirectory />
       default: 
         if (page.startsWith('jobs/')) return <JobDetailPage />
+        if (page.startsWith('exams/')) return <ExamLandingPage />
         return <HomePage />
     }
   }

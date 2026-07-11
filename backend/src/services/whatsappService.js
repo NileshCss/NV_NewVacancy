@@ -15,6 +15,9 @@
  *  • QR tracking — current QR string stored in memory, cleared on connect.
  *  • Event logging — every connect/disconnect/logout event written to
  *    whatsapp_logs Supabase table (non-blocking, best-effort).
+ *  • Session ID — each _connect() call gets a unique _sessionId. Event
+ *    handlers compare their captured ID to this._sessionId and drop stale
+ *    events from dead sockets, preventing re-entrancy races on reconnect.
  *
  * Public API:
  *   initialize()           — connect and boot session (safe to call multiple times)
@@ -72,14 +75,17 @@ async function getBaileys() {
 // ── Write a log entry to Supabase (non-blocking, best-effort) ─────────────────
 async function _writeLog(eventType, { reason = null, phoneNumber = null, triggeredBy = 'system' } = {}) {
   try {
-    await _supabase.from('whatsapp_logs').insert({
+    const { error } = await _supabase.from('whatsapp_logs').insert({
       event_type:   eventType,
       reason,
       phone_number: phoneNumber,
       triggered_by: triggeredBy,
     });
+    if (error) {
+      logger.warn('[WhatsApp] Failed to write log entry', { error: error.message, code: error.code });
+    }
   } catch (err) {
-    logger.warn('[WhatsApp] Failed to write log entry', { error: err.message });
+    logger.warn('[WhatsApp] Failed to write log entry (exception)', { error: err.message });
   }
 }
 
@@ -92,6 +98,11 @@ class WhatsAppService {
     this.state             = STATE.DISCONNECTED;
     this.isInitialized     = false;
     this.reconnectAttempts = 0;
+
+    // ── Session ID: incremented on every _connect() call.
+    //    Event handlers capture this at creation time and compare before acting,
+    //    so stale events from dead sockets are silently dropped.
+    this._sessionId = 0;
 
     // Status tracking
     this._phoneNumber        = null;
@@ -129,6 +140,10 @@ class WhatsAppService {
     }
 
     logger.info('[WhatsApp] Initialising Baileys WhatsApp client…');
+    logger.info('[WhatsApp] Config — groupId:', config.groupId || '(not set)',
+      '| channelId:', config.channelId || '(not set)',
+      '| authPath:', config.authDataPath);
+
     this.state         = STATE.CONNECTING;
     this.isInitialized = true;
 
@@ -147,6 +162,7 @@ class WhatsAppService {
   async logout(triggeredBy = 'system') {
     logger.info('[WhatsApp] Logout requested', { triggeredBy });
 
+    // Attempt a graceful Baileys logout (best-effort, may fail if already dead)
     try {
       if (this.sock) {
         await this.sock.logout();
@@ -155,21 +171,14 @@ class WhatsAppService {
       logger.warn('[WhatsApp] Baileys logout error (continuing)', { error: err.message });
     }
 
+    // Tear down the existing socket completely before restarting
+    this._destroySocket();
+
     // Clear session files so next connect shows a fresh QR
-    const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
-    try {
-      if (fs.existsSync(authPath)) {
-        fs.rmSync(authPath, { recursive: true, force: true });
-        logger.info('[WhatsApp] Auth files cleared');
-      }
-    } catch (err) {
-      logger.warn('[WhatsApp] Could not clear auth files', { error: err.message });
-    }
+    this._clearAuthFiles();
 
     // Update state
-    this.sock              = null;
     this.state             = STATE.NEEDS_REAUTH;
-    this.isInitialized     = false;
     this._currentQR        = null;
     this._currentQRPng     = null;
     this._disconnectReason = 'manual_logout';
@@ -180,6 +189,42 @@ class WhatsAppService {
 
     // Restart immediately so a new QR code is generated for the admin panel
     this.initialize();
+  }
+
+  // ── PRIVATE: destroySocket — tear down the current socket cleanly ────────────
+
+  _destroySocket() {
+    // Increment session ID FIRST — any in-flight event handlers from the old
+    // socket will now have a stale capturedId and will return early.
+    this._sessionId++;
+
+    if (this.sock) {
+      try { this.sock.end(undefined); } catch { /* best-effort */ }
+      try { this.sock.ev.removeAllListeners(); } catch { /* best-effort */ }
+      this.sock = null;
+    }
+
+    // Clear the reconnect timer if one is pending
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+
+    this.isInitialized = false;
+  }
+
+  // ── PRIVATE: clearAuthFiles ──────────────────────────────────────────────────
+
+  _clearAuthFiles() {
+    const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
+    try {
+      if (fs.existsSync(authPath)) {
+        fs.rmSync(authPath, { recursive: true, force: true });
+        logger.info('[WhatsApp] Auth files cleared');
+      }
+    } catch (err) {
+      logger.warn('[WhatsApp] Could not clear auth files', { error: err.message });
+    }
   }
 
   // ── PRIVATE: connect ─────────────────────────────────────────────────────────
@@ -200,6 +245,11 @@ class WhatsAppService {
     const { default: pino } = await import('pino');
     const silentLogger = pino({ level: 'silent' });
 
+    // Capture the session ID for this _connect() invocation.
+    // All event handlers close over this value — if _destroySocket() is called
+    // (incrementing this._sessionId), the handlers detect the mismatch and exit.
+    const mySessionId = ++this._sessionId;
+
     this.sock = makeWASocket({
       auth:                  authState,
       logger:                silentLogger,
@@ -213,6 +263,9 @@ class WhatsAppService {
     // ── Events ────────────────────────────────────────────────────────────────
 
     this.sock.ev.on('connection.update', async (update) => {
+      // Stale-session guard: drop events from a socket we've already replaced
+      if (mySessionId !== this._sessionId) return;
+
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -241,49 +294,57 @@ class WhatsAppService {
       }
 
       if (connection === 'close') {
+        // Stale-session guard (check again after any await above)
+        if (mySessionId !== this._sessionId) return;
+
         const statusCode = (lastDisconnect?.error instanceof Boom)
           ? lastDisconnect.error.output?.statusCode
           : null;
 
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        const reason = shouldReconnect ? `connection_lost (code: ${statusCode})` : 'logged_out_by_phone';
+        const isLoggedOut    = statusCode === DisconnectReason.loggedOut;
+        const shouldReconnect = !isLoggedOut;
+        const reason = isLoggedOut
+          ? 'logged_out_by_phone'
+          : `connection_lost (code: ${statusCode})`;
 
-        logger.warn('[WhatsApp] Connection closed', { statusCode, shouldReconnect, reason });
+        logger.warn('[WhatsApp] Connection closed', { statusCode, isLoggedOut, reason });
 
-        this.state               = shouldReconnect ? STATE.DISCONNECTED : STATE.NEEDS_REAUTH;
+        this.state               = isLoggedOut ? STATE.NEEDS_REAUTH : STATE.DISCONNECTED;
         this._disconnectReason   = reason;
         this._lastDisconnectedAt = new Date().toISOString();
         this._currentQR          = null;
         this._currentQRPng       = null;
-        this.sock                = null;
 
-        const eventType = statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'disconnected';
+        const eventType = isLoggedOut ? 'logged_out' : 'disconnected';
         await _writeLog(eventType, { reason, phoneNumber: this._phoneNumber });
 
-        if (statusCode === DisconnectReason.loggedOut) {
+        if (isLoggedOut) {
           console.log('\n🔴  WhatsApp logged out from phone — admin must re-scan QR in dashboard.\n');
           this._phoneNumber = null;
-          
-          // Clear session files
-          const authPath = path.resolve(config.authDataPath || './.baileys_auth_info');
-          try {
-            if (fs.existsSync(authPath)) {
-              fs.rmSync(authPath, { recursive: true, force: true });
-            }
-          } catch (err) {}
 
-          this.isInitialized = false;
-          // Restart socket to generate a new QR code immediately
+          // Tear down the dead socket atomically, then restart for a fresh QR.
+          // _destroySocket() increments _sessionId, so this very handler will
+          // be the last thing that runs from the old socket.
+          this._destroySocket();
+          this._clearAuthFiles();
+
+          // Small delay so any in-flight Baileys teardown can settle
+          await new Promise(r => setTimeout(r, 500));
+
           this.initialize();
           return;
         }
 
+        // Not a logout — try to reconnect with existing session
         if (config.autoReconnect) {
           this._scheduleReconnect();
         }
       }
 
       if (connection === 'open') {
+        // Stale-session guard
+        if (mySessionId !== this._sessionId) return;
+
         this.state             = STATE.CONNECTED;
         this.reconnectAttempts = 0;
         this._currentQR        = null;
@@ -403,18 +464,9 @@ class WhatsAppService {
   // ── PUBLIC: destroy ──────────────────────────────────────────────────────────
 
   async destroy() {
-    if (this._reconnectTimer) {
-      clearTimeout(this._reconnectTimer);
-      this._reconnectTimer = null;
-    }
-    if (this.sock) {
-      logger.info('[WhatsApp] Shutting down Baileys socket…');
-      try { this.sock.end(); } catch { /* best-effort */ }
-      this.sock          = null;
-      this.state         = STATE.DISCONNECTED;
-      this.isInitialized = false;
-      logger.info('[WhatsApp] Socket destroyed');
-    }
+    this._destroySocket();
+    this.state = STATE.DISCONNECTED;
+    logger.info('[WhatsApp] Service destroyed');
   }
 
   // ── PRIVATE: helpers ─────────────────────────────────────────────────────────

@@ -19,6 +19,12 @@ import LiveUpdatesManager from './admin/LiveUpdatesManager'
 import JobVacancyForm from '../components/admin/JobVacancyForm'
 import AdminScraper from '../components/admin/AdminScraper'
 import WhatsAppManager from '../components/admin/WhatsAppManager'
+import ExamCategoriesManager from './admin/exam/ExamCategoriesManager'
+import ExamsManager from './admin/exam/ExamsManager'
+import SubjectsManager from './admin/exam/SubjectsManager'
+import ChaptersManager from './admin/exam/ChaptersManager'
+import TopicsManager from './admin/exam/TopicsManager'
+import QuestionBankManager from './admin/exam/QuestionBankManager'
 
 // ── Defaults (news + affiliates) ──────────────────────────────────
 const NEWS_DEFAULTS = { title: '', summary: '', source_name: '', source_url: '', category: 'govt', is_featured: false, is_active: true }
@@ -225,6 +231,12 @@ export default function AdminPanel() {
     { id: 'jobs',         label: '💼 Jobs' },
     { id: 'news',         label: '📰 News' },
     { id: 'affiliates',   label: '🎁 Affiliates' },
+    { id: 'exam_categories', label: '📚 Exam Categories' },
+    { id: 'exams',        label: '📝 Exams' },
+    { id: 'subjects',     label: '📖 Subjects' },
+    { id: 'chapters',     label: '📑 Chapters' },
+    { id: 'topics',       label: '📄 Topics' },
+    { id: 'questions',    label: '❓ Questions' },
     { id: 'live-updates', label: '📢 Live Updates' },
     { id: 'users',        label: '👥 Users' },
     { id: 'ai',           label: '✨ AI Assistant' },
@@ -417,6 +429,14 @@ export default function AdminPanel() {
             </div>
           </>
         )}
+
+        {/* EXAM MODULE */}
+        {section === 'exam_categories' && <ExamCategoriesManager />}
+        {section === 'exams' && <ExamsManager />}
+        {section === 'subjects' && <SubjectsManager />}
+        {section === 'chapters' && <ChaptersManager />}
+        {section === 'topics' && <TopicsManager />}
+        {section === 'questions' && <QuestionBankManager />}
 
         {/* JOBS */}
         {section === 'jobs' && (

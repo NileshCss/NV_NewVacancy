@@ -534,3 +534,162 @@ export const toggleSavedJob = async (userId, jobId) => {
     return true
   }
 }
+
+// ── EXAM MODULE ────────────────────────────────────────────────
+export const fetchExamCategories = async () => {
+  const res = await adminFetch('/exam/categories', { method: 'GET' })
+  return res.data || []
+}
+
+export const createExamCategory = async (payload) => {
+  const res = await adminFetch('/exam/categories', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateExamCategory = async (id, payload) => {
+  const res = await adminFetch(`/exam/categories/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const deleteExamCategory = async (id) => {
+  const res = await adminFetch(`/exam/categories/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const fetchExams = async (categoryId = null) => {
+  const query = categoryId ? `?category_id=${categoryId}` : ''
+  const res = await adminFetch(`/exam/exams${query}`, { method: 'GET' })
+  return res.data || []
+}
+
+export const createExam = async (payload) => {
+  const res = await adminFetch('/exam/exams', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateExam = async (id, payload) => {
+  const res = await adminFetch(`/exam/exams/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const deleteExam = async (id) => {
+  const res = await adminFetch(`/exam/exams/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const fetchSubjects = async (examId) => {
+  const res = await adminFetch(`/exam/subjects?exam_id=${examId}`, { method: 'GET' })
+  return res.data || []
+}
+
+export const createSubject = async (payload) => {
+  const res = await adminFetch('/exam/subjects', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateSubject = async (id, payload) => {
+  const res = await adminFetch(`/exam/subjects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const deleteSubject = async (id) => {
+  const res = await adminFetch(`/exam/subjects/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const reorderSubjects = async (items) => {
+  const res = await adminFetch('/exam/subjects/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+  return res
+}
+
+export const fetchChapters = async (subjectId) => {
+  const res = await adminFetch(`/exam/chapters?subject_id=${subjectId}`, { method: 'GET' })
+  return res.data || []
+}
+
+export const createChapter = async (payload) => {
+  const res = await adminFetch('/exam/chapters', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateChapter = async (id, payload) => {
+  const res = await adminFetch(`/exam/chapters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const deleteChapter = async (id) => {
+  const res = await adminFetch(`/exam/chapters/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const reorderChapters = async (items) => {
+  const res = await adminFetch('/exam/chapters/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+  return res
+}
+
+export const fetchTopics = async (chapterId) => {
+  const res = await adminFetch(`/exam/topics?chapter_id=${chapterId}`, { method: 'GET' })
+  return res.data || []
+}
+
+export const createTopic = async (payload) => {
+  const res = await adminFetch('/exam/topics', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateTopic = async (id, payload) => {
+  const res = await adminFetch(`/exam/topics/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const deleteTopic = async (id) => {
+  const res = await adminFetch(`/exam/topics/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const reorderTopics = async (items) => {
+  const res = await adminFetch('/exam/topics/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+  return res
+}
+
+export const fetchQuestions = async (params = {}) => {
+  const query = new URLSearchParams(params).toString()
+  const res = await adminFetch(`/exam/questions?${query}`, { method: 'GET' })
+  return res.data || []
+}
+
+export const fetchQuestion = async (id) => {
+  const res = await adminFetch(`/exam/questions/${id}`, { method: 'GET' })
+  return res.data
+}
+
+export const createQuestion = async (payload) => {
+  const res = await adminFetch('/exam/questions', { method: 'POST', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateQuestion = async (id, payload) => {
+  const res = await adminFetch(`/exam/questions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return res.data
+}
+
+export const updateQuestionStatus = async (id, status) => {
+  const res = await adminFetch(`/exam/questions/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  return res.data
+}
+
+export const deleteQuestion = async (id) => {
+  const res = await adminFetch(`/exam/questions/${id}`, { method: 'DELETE' })
+  return res
+}
+
+export const bulkImportQuestions = async (csvData, mappings) => {
+  const res = await adminFetch('/exam/questions/bulk-import', { method: 'POST', body: JSON.stringify({ csvData, mappings }) })
+  return res.data
+}
+
+export const extractQuestionsAI = async (rawText) => {
+  const res = await adminFetch('/exam/questions/extract-ai', { method: 'POST', body: JSON.stringify({ rawText }) })
+  return res.data
+}
+
