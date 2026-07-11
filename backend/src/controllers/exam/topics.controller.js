@@ -1,21 +1,19 @@
 'use strict';
 
-const { supabaseAdmin, supabaseRegular } = require('../../middleware/rbac');
+const { supabaseAdmin, supabaseRegular, getClientForRequest } = require('../../middleware/rbac');
 const logger = require('../../utils/logger');
 
 exports.listTopics = async (req, res) => {
   try {
-    const { subject_id } = req.query;
-    if (!subject_id) return res.status(400).json({ success: false, error: 'subject_id is required' });
+    const { chapter_id } = req.query;
+    if (!chapter_id) return res.status(400).json({ success: false, error: 'chapter_id is required' });
 
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
-        ? supabaseAdmin 
-        : supabaseRegular;
+    const client = getClientForRequest(req);
 
     const { data, error } = await client
       .from('topics')
       .select('*')
-      .eq('subject_id', subject_id)
+      .eq('chapter_id', chapter_id)
       .order('display_order', { ascending: true })
       .order('created_at', { ascending: true });
 
@@ -30,9 +28,7 @@ exports.listTopics = async (req, res) => {
 exports.getTopic = async (req, res) => {
   try {
     const { id } = req.params;
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
-        ? supabaseAdmin 
-        : supabaseRegular;
+    const client = getClientForRequest(req);
 
     const { data, error } = await client
       .from('topics')
@@ -52,13 +48,15 @@ exports.getTopic = async (req, res) => {
 
 exports.createTopic = async (req, res) => {
   try {
-    const { subject_id, name, description, notes_rich_text, formula, diagrams, interview_tips, revision_notes, important_points, pdf_url, display_order } = req.body;
-    if (!subject_id || !name) return res.status(400).json({ success: false, error: 'subject_id and name are required' });
+    const { chapter_id, name, description, notes_rich_text, formula, diagrams, interview_tips, revision_notes, important_points, pdf_url, display_order } = req.body;
+    if (!chapter_id || !name) return res.status(400).json({ success: false, error: 'chapter_id and name are required' });
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+
+    const { data, error } = await client
       .from('topics')
       .insert([{ 
-        subject_id, name, description, notes_rich_text, formula, 
+        chapter_id, name, description, notes_rich_text, formula, 
         diagrams: diagrams || [], interview_tips, revision_notes, 
         important_points, pdf_url, display_order 
       }])
@@ -77,8 +75,9 @@ exports.updateTopic = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = { ...req.body, updated_at: new Date().toISOString() };
+    const client = getClientForRequest(req);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from('topics')
       .update(updates)
       .eq('id', id)
@@ -96,7 +95,9 @@ exports.updateTopic = async (req, res) => {
 exports.deleteTopic = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+
+    const { error } = await client
       .from('topics')
       .delete()
       .eq('id', id);
@@ -114,8 +115,10 @@ exports.reorderTopics = async (req, res) => {
     const { items } = req.body; 
     if (!Array.isArray(items)) return res.status(400).json({ success: false, error: 'items array is required' });
 
+    const client = getClientForRequest(req);
+
     const promises = items.map(item => 
-      supabaseAdmin.from('topics').update({ display_order: item.display_order }).eq('id', item.id)
+      client.from('topics').update({ display_order: item.display_order }).eq('id', item.id)
     );
     await Promise.all(promises);
 

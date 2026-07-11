@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from '../../context/RouterContext'
-import { fetchExams, fetchSubjects, fetchTopics } from '../../services/api'
+import { fetchExams, fetchSubjects, fetchChapters, fetchTopics } from '../../services/api'
 import { Loader2, BookOpen, Target, Clock, AlertCircle, ChevronDown, ChevronRight, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -9,11 +9,13 @@ export default function ExamLandingPage() {
   const slug = page.split('/')[1]
   const [exam, setExam] = useState(null)
   const [subjects, setSubjects] = useState([])
-  const [topicsBySubject, setTopicsBySubject] = useState({})
+  const [chaptersBySubject, setChaptersBySubject] = useState({})
+  const [topicsByChapter, setTopicsByChapter] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   
   const [expandedSubject, setExpandedSubject] = useState(null)
+  const [expandedChapter, setExpandedChapter] = useState(null)
 
   useEffect(() => {
     async function loadExamData() {
@@ -36,16 +38,32 @@ export default function ExamLandingPage() {
     loadExamData()
   }, [slug])
 
-  const loadTopics = async (subjectId) => {
+  const loadChapters = async (subjectId) => {
     if (expandedSubject === subjectId) {
       setExpandedSubject(null)
       return
     }
     setExpandedSubject(subjectId)
-    if (!topicsBySubject[subjectId]) {
+    if (!chaptersBySubject[subjectId]) {
       try {
-        const tops = await fetchTopics(subjectId)
-        setTopicsBySubject(prev => ({ ...prev, [subjectId]: tops }))
+        const chaps = await fetchChapters(subjectId)
+        setChaptersBySubject(prev => ({ ...prev, [subjectId]: chaps }))
+      } catch (err) {
+        toast.error('Failed to load chapters')
+      }
+    }
+  }
+
+  const loadChapterTopics = async (chapterId) => {
+    if (expandedChapter === chapterId) {
+      setExpandedChapter(null)
+      return
+    }
+    setExpandedChapter(chapterId)
+    if (!topicsByChapter[chapterId]) {
+      try {
+        const tops = await fetchTopics(chapterId)
+        setTopicsByChapter(prev => ({ ...prev, [chapterId]: tops }))
       } catch (err) {
         toast.error('Failed to load topics')
       }
@@ -142,7 +160,7 @@ export default function ExamLandingPage() {
                 {subjects.map(subject => (
                   <div key={subject.id} className="border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--bg-surface)]">
                     <button 
-                      onClick={() => loadTopics(subject.id)}
+                      onClick={() => loadChapters(subject.id)}
                       className="w-full flex items-center justify-between p-4 hover:bg-[var(--border)]/50 transition-colors text-left"
                     >
                       <span className="font-bold text-lg text-[var(--text-primary)] flex items-center gap-2">
@@ -154,28 +172,52 @@ export default function ExamLandingPage() {
                     
                     {expandedSubject === subject.id && (
                       <div className="p-4 pt-0 border-t border-[var(--border)] bg-[var(--bg-card)]">
-                        {!topicsBySubject[subject.id] ? (
+                        {!chaptersBySubject[subject.id] ? (
                           <div className="text-center py-4"><Loader2 className="animate-spin mx-auto text-blue-500" /></div>
-                        ) : topicsBySubject[subject.id].length === 0 ? (
-                          <div className="text-sm text-[var(--text-muted)] p-2">No topics.</div>
+                        ) : chaptersBySubject[subject.id].length === 0 ? (
+                          <div className="text-sm text-[var(--text-muted)] p-2">No chapters found under this subject.</div>
                         ) : (
-                          <ul className="space-y-2 mt-2">
-                            {topicsBySubject[subject.id].map(topic => (
-                              <li key={topic.id} className="flex items-start gap-2 p-2 rounded hover:bg-[var(--border)]/30 transition-colors">
-                                <div className="mt-1"><Target size={14} className="text-blue-500" /></div>
-                                <div className="flex-1">
-                                  <div className="text-sm font-medium text-[var(--text-primary)]">{topic.name}</div>
-                                  {topic.description && <div className="text-xs text-[var(--text-secondary)] mt-0.5">{topic.description}</div>}
-                                  {(topic.pdf_url || topic.notes_rich_text) && (
-                                    <div className="flex gap-3 mt-2">
-                                      {topic.pdf_url && <a href={topic.pdf_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1"><FileText size={12}/> PDF Notes</a>}
-                                      {topic.notes_rich_text && <span className="text-xs text-purple-500 flex items-center gap-1"><BookOpen size={12}/> Read Notes</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              </li>
+                          <div className="space-y-2 mt-2 pl-2">
+                            {chaptersBySubject[subject.id].map(chapter => (
+                              <div key={chapter.id} className="border border-[var(--border)]/60 rounded-lg overflow-hidden bg-[var(--bg-surface)]/40">
+                                <button
+                                  onClick={() => loadChapterTopics(chapter.id)}
+                                  className="w-full flex items-center justify-between p-3 hover:bg-[var(--border)]/30 transition-colors text-left text-sm font-semibold text-[var(--text-primary)]"
+                                >
+                                  <span>🔖 {chapter.name}</span>
+                                  {expandedChapter === chapter.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                </button>
+                                
+                                {expandedChapter === chapter.id && (
+                                  <div className="p-3 pt-0 border-t border-[var(--border)]/40 bg-[var(--bg-card)]">
+                                    {!topicsByChapter[chapter.id] ? (
+                                      <div className="text-center py-2"><Loader2 className="animate-spin mx-auto text-blue-500 w-4 h-4" /></div>
+                                    ) : topicsByChapter[chapter.id].length === 0 ? (
+                                      <div className="text-xs text-[var(--text-muted)] p-2">No topics.</div>
+                                    ) : (
+                                      <ul className="space-y-2 mt-2 pl-2">
+                                        {topicsByChapter[chapter.id].map(topic => (
+                                          <li key={topic.id} className="flex items-start gap-2 p-2 rounded hover:bg-[var(--border)]/30 transition-colors">
+                                            <div className="mt-1"><Target size={14} className="text-blue-500" /></div>
+                                            <div className="flex-1">
+                                              <div className="text-sm font-medium text-[var(--text-primary)]">{topic.name}</div>
+                                              {topic.description && <div className="text-xs text-[var(--text-secondary)] mt-0.5">{topic.description}</div>}
+                                              {(topic.pdf_url || topic.notes_rich_text) && (
+                                                <div className="flex gap-3 mt-2">
+                                                  {topic.pdf_url && <a href={topic.pdf_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1"><FileText size={12}/> PDF Notes</a>}
+                                                  {topic.notes_rich_text && <span className="text-xs text-purple-500 flex items-center gap-1"><BookOpen size={12}/> Read Notes</span>}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         )}
                       </div>
                     )}

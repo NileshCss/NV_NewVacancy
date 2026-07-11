@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { fetchExams, fetchSubjects, fetchTopics } from '../../../services/api'
+import { fetchExams, fetchSubjects, fetchChapters, fetchTopics } from '../../../services/api'
 import { Plus, Trash, X, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function QuestionEditor({ question, onSave, onCancel }) {
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
+  const [chapters, setChapters] = useState([])
   const [topics, setTopics] = useState([])
 
   // Mappings state
   const [mapping, setMapping] = useState({
     exam_id: '',
     subject_id: '',
+    chapter_id: '',
     topic_id: ''
   })
 
@@ -73,6 +75,7 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
         setMapping({
           exam_id: firstMap.exam_id || '',
           subject_id: firstMap.subject_id || '',
+          chapter_id: firstMap.chapter_id || '',
           topic_id: firstMap.topic_id || ''
         })
       }
@@ -83,19 +86,31 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
   useEffect(() => {
     if (!mapping.exam_id) {
       setSubjects([])
+      setChapters([])
+      setTopics([])
       return
     }
     fetchSubjects(mapping.exam_id).then(setSubjects).catch(() => toast.error('Failed to load subjects'))
   }, [mapping.exam_id])
 
-  // Load topics when subject changes
+  // Load chapters when subject changes
   useEffect(() => {
     if (!mapping.subject_id) {
+      setChapters([])
       setTopics([])
       return
     }
-    fetchTopics(mapping.subject_id).then(setTopics).catch(() => toast.error('Failed to load topics'))
+    fetchChapters(mapping.subject_id).then(setChapters).catch(() => toast.error('Failed to load chapters'))
   }, [mapping.subject_id])
+
+  // Load topics when chapter changes
+  useEffect(() => {
+    if (!mapping.chapter_id) {
+      setTopics([])
+      return
+    }
+    fetchTopics(mapping.chapter_id).then(setTopics).catch(() => toast.error('Failed to load topics'))
+  }, [mapping.chapter_id])
 
   const handleOptionChange = (index, value) => {
     const updated = [...formData.options]
@@ -175,11 +190,11 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
           {/* Mappings / Hierarchy Selector */}
           <div className="bg-[var(--bg-surface)] p-4 rounded-lg border border-[var(--border)] space-y-4">
             <h4 className="font-semibold text-sm text-[var(--text-primary)]">Syllabus Association</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Exam</label>
                 <select className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded p-2 text-sm text-[var(--text-primary)]"
-                        value={mapping.exam_id} onChange={e => setMapping({ ...mapping, exam_id: e.target.value, subject_id: '', topic_id: '' })}>
+                        value={mapping.exam_id} onChange={e => setMapping({ ...mapping, exam_id: e.target.value, subject_id: '', chapter_id: '', topic_id: '' })}>
                   <option value="">None / Independent</option>
                   {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -189,16 +204,26 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Subject</label>
                 <select className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded p-2 text-sm text-[var(--text-primary)]"
                         disabled={!mapping.exam_id}
-                        value={mapping.subject_id} onChange={e => setMapping({ ...mapping, subject_id: e.target.value, topic_id: '' })}>
+                        value={mapping.subject_id} onChange={e => setMapping({ ...mapping, subject_id: e.target.value, chapter_id: '', topic_id: '' })}>
                   <option value="">Select Subject...</option>
                   {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Topic</label>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Chapter</label>
                 <select className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded p-2 text-sm text-[var(--text-primary)]"
                         disabled={!mapping.subject_id}
+                        value={mapping.chapter_id} onChange={e => setMapping({ ...mapping, chapter_id: e.target.value, topic_id: '' })}>
+                  <option value="">Select Chapter...</option>
+                  {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Topic</label>
+                <select className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded p-2 text-sm text-[var(--text-primary)]"
+                        disabled={!mapping.chapter_id}
                         value={mapping.topic_id} onChange={e => setMapping({ ...mapping, topic_id: e.target.value })}>
                   <option value="">Select Topic...</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

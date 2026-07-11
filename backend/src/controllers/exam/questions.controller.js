@@ -394,37 +394,84 @@ exports.importFile = async (req, res) => {
 
     } else {
       // Excel/CSV Processing
-      // Fetch taxonomy data for resolution
-      const { data: dbExams } = await client.from('exams').select('id, name');
-      const { data: dbSubjects } = await client.from('subjects').select('id, name, exam_id');
-      const { data: dbTopics } = await client.from('topics').select('id, name, subject_id');
+      const examId = req.body.examId;
+      if (!examId) {
+        return res.status(400).json({ success: false, error: 'Target examId is required for file import' });
+      }
+
+      // Fetch taxonomy data for resolution (scoped under the target examId)
+      let { data: dbSubjects } = await client.from('subjects').select('id, name').eq('exam_id', examId);
+      if (!dbSubjects) dbSubjects = [];
 
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         try {
-          const questionText = row.question_text || row.question;
+          const questionText = row.question || row.Question || row.question_text;
           if (!questionText) {
             failedCount++;
             continue;
           }
 
-          // Taxonomy resolution
-          let resolvedExam = null;
-          if (row.exam_name) {
-            resolvedExam = dbExams?.find(e => e.name.trim().toLowerCase() === String(row.exam_name).trim().toLowerCase());
-            if (!resolvedExam) unresolvedRefs.push({ row: i + 1, type: 'exam', name: row.exam_name });
-          }
-
+          // Taxonomy resolution (Subject -> Chapter -> Topic)
           let resolvedSubject = null;
-          if (resolvedExam && row.subject_name) {
-            resolvedSubject = dbSubjects?.find(s => s.exam_id === resolvedExam.id && s.name.trim().toLowerCase() === String(row.subject_name).trim().toLowerCase());
-            if (!resolvedSubject) unresolvedRefs.push({ row: i + 1, type: 'subject', name: row.subject_name });
-          }
-
+          let resolvedChapter = null;
           let resolvedTopic = null;
-          if (resolvedSubject && row.topic_name) {
-            resolvedTopic = dbTopics?.find(t => t.subject_id === resolvedSubject.id && t.name.trim().toLowerCase() === String(row.topic_name).trim().toLowerCase());
-            if (!resolvedTopic) unresolvedRefs.push({ row: i + 1, type: 'topic', name: row.topic_name });
+
+          const subjectName = (row.Subject || row.subject || row.subject_name || '').trim();
+          if (subjectName) {
+            // Find in loaded list
+            resolvedSubject = dbSubjects.find(s => s.name.trim().toLowerCase() === subjectName.toLowerCase());
+            if (!resolvedSubject) {
+              // Create it!
+              const { data: newSub, error: subErr } = await client
+                .from('subjects')
+                .insert([{ exam_id: examId, name: subjectName, enabled: true }])
+                .select()
+                .single();
+              if (subErr) throw new Error(`Failed to create Subject "${subjectName}": ${subErr.message}`);
+              resolvedSubject = newSub;
+              dbSubjects.push(newSub);
+            }
+
+            // Resolve Chapter (maps to CSV Topic)
+            const chapterName = (row.Topic || row.topic || row.topic_name || '').trim();
+            if (chapterName && resolvedSubject) {
+              // Fetch chapters under this subject
+              let { data: dbChapters } = await client.from('chapters').select('id, name').eq('subject_id', resolvedSubject.id);
+              if (!dbChapters) dbChapters = [];
+
+              resolvedChapter = dbChapters.find(c => c.name.trim().toLowerCase() === chapterName.toLowerCase());
+              if (!resolvedChapter) {
+                // Create it!
+                const { data: newChap, error: chapErr } = await client
+                  .from('chapters')
+                  .insert([{ subject_id: resolvedSubject.id, name: chapterName }])
+                  .select()
+                  .single();
+                if (chapErr) throw new Error(`Failed to create Chapter "${chapterName}": ${chapErr.message}`);
+                resolvedChapter = newChap;
+              }
+
+              // Resolve Topic (maps to CSV Subtopic)
+              const topicName = (row.Subtopic || row.subtopic || row.subtopic_name || '').trim();
+              if (topicName && resolvedChapter) {
+                // Fetch topics under this chapter
+                let { data: dbTopics } = await client.from('topics').select('id, name').eq('chapter_id', resolvedChapter.id);
+                if (!dbTopics) dbTopics = [];
+
+                resolvedTopic = dbTopics.find(t => t.name.trim().toLowerCase() === topicName.toLowerCase());
+                if (!resolvedTopic) {
+                  // Create it!
+                  const { data: newTopic, error: topicErr } = await client
+                    .from('topics')
+                    .insert([{ chapter_id: resolvedChapter.id, name: topicName }])
+                    .select()
+                    .single();
+                  if (topicErr) throw new Error(`Failed to create Topic "${topicName}": ${topicErr.message}`);
+                  resolvedTopic = newTopic;
+                }
+              }
+            }
           }
 
           // Duplicate detection
@@ -439,29 +486,29 @@ exports.importFile = async (req, res) => {
 
           // Gather options
           const options = [];
-          const optA = row.option_a || row.option_1 || row.optionA;
-          const optB = row.option_b || row.option_2 || row.optionB;
-          const optC = row.option_c || row.option_3 || row.optionC;
-          const optD = row.option_d || row.option_4 || row.optionD;
-          if (optA) options.push(String(optA));
-          if (optB) options.push(String(optB));
-          if (optC) options.push(String(optC));
-          if (optD) options.push(String(optD));
+          const optA = row.option_a || row.Option_A || row.optionA;
+          const optB = row.option_b || row.Option_B || row.optionB;
+          const optC = row.option_c || row.Option_C || row.optionC;
+          const optD = row.option_d || row.Option_D || row.optionD;
+          if (optA !== undefined) options.push(String(optA));
+          if (optB !== undefined) options.push(String(optB));
+          if (optC !== undefined) options.push(String(optC));
+          if (optD !== undefined) options.push(String(optD));
 
           // Correct answer parsing
           let correctIndices = [];
           let correctAnswerText = '';
-          const correctVal = String(row.correct_answer || row.answer || '').trim();
-          if (correctVal.toLowerCase() === 'a' || correctVal === '0') {
+          const correctVal = String(row.correct_answer || row.Correct_Answer || row.answer || '').trim().toUpperCase();
+          if (correctVal === 'A' || correctVal === '0') {
             correctIndices = [0];
             correctAnswerText = options[0] || '';
-          } else if (correctVal.toLowerCase() === 'b' || correctVal === '1') {
+          } else if (correctVal === 'B' || correctVal === '1') {
             correctIndices = [1];
             correctAnswerText = options[1] || '';
-          } else if (correctVal.toLowerCase() === 'c' || correctVal === '2') {
+          } else if (correctVal === 'C' || correctVal === '2') {
             correctIndices = [2];
             correctAnswerText = options[2] || '';
-          } else if (correctVal.toLowerCase() === 'd' || correctVal === '3') {
+          } else if (correctVal === 'D' || correctVal === '3') {
             correctIndices = [3];
             correctAnswerText = options[3] || '';
           } else {
@@ -474,39 +521,91 @@ exports.importFile = async (req, res) => {
 
           const correct_answer = { indices: correctIndices, answer: correctAnswerText };
 
-          // Build tags list
+          // Build tags list (semicolon split)
           let tagsList = [];
-          if (row.tags) {
-            tagsList = String(row.tags).split(',').map(t => t.trim()).filter(Boolean);
+          const rawTags = row.tags || row.Tags || '';
+          if (rawTags) {
+            tagsList = String(rawTags).split(';').map(t => t.trim()).filter(Boolean);
           }
           tagsList.push(`batch_${logEntry.id}`);
 
+          // Check interview relevance
+          const interviewLevel = String(row.interview_level || row.Interview_Level || '').trim().toLowerCase();
+          if (interviewLevel === 'yes' || interviewLevel === 'true' || interviewLevel === '1') {
+            tagsList.push('interview-relevant');
+          }
+
+          // Build hints (Shortcut + Memory_Tip)
+          const hints = [];
+          const shortcut = row.shortcut || row.Shortcut;
+          if (shortcut) hints.push(`Shortcut: ${shortcut}`);
+          const memoryTip = row.memory_tip || row.Memory_Tip;
+          if (memoryTip) hints.push(`Memory Tip: ${memoryTip}`);
+          const hint = hints.join(' | ') || null;
+
+          // Build reference (Previous_Year_Source + Previous_Year_Exam)
+          const refParts = [];
+          const pySource = row.previous_year_source || row.Previous_Year_Source;
+          if (pySource) refParts.push(pySource);
+          const pyExam = row.previous_year_exam || row.Previous_Year_Exam;
+          if (pyExam) refParts.push(pyExam);
+          const reference = refParts.join(' - ') || null;
+
+          // Option explanations
+          const option_explanations = {
+            a: row.why_a_wrong || row.Why_A_Wrong || null,
+            b: row.why_b_wrong || row.Why_B_Wrong || null,
+            c: row.why_c_wrong || row.Why_C_Wrong || null,
+            d: row.why_d_wrong || row.Why_D_Wrong || null
+          };
+
+          // Question Type normalization
+          const qTypeVal = String(row.question_type || row.Question_Type || 'mcq').trim().toLowerCase();
+          const question_type = ['mcq', 'msq', 'nat', 'true_false', 'assertion_reason'].includes(qTypeVal) ? qTypeVal : 'mcq';
+
+          // Difficulty normalization
+          const diffVal = String(row.difficulty || row.Difficulty || 'medium').trim().toLowerCase();
+          const difficulty = ['easy', 'medium', 'hard'].includes(diffVal) ? diffVal : 'medium';
+
           const qPayload = {
             question_text: questionText,
-            question_type: row.question_type || 'mcq',
+            question_type,
             options: options.length > 0 ? options : null,
             correct_answer,
-            explanation: row.explanation || null,
-            solution_text: row.solution_text || null,
-            difficulty: ['easy', 'medium', 'hard'].includes(row.difficulty) ? row.difficulty : 'medium',
+            explanation: row.explanation || row.Explanation || null,
+            solution_text: row.solution_text || row.Solution_Text || null,
+            difficulty,
             status: 'draft',
             source: 'bulk_import',
             possible_duplicate_of: possibleDup,
             created_by: req.user.id,
-            marks: parseFloat(row.marks) || 1,
-            negative_marks: parseFloat(row.negative_marks) || 0,
-            tags: tagsList
+            marks: parseFloat(row.marks || row.Marks) || 1,
+            negative_marks: parseFloat(row.negative_marks || row.Negative_Marks) || 0,
+            tags: tagsList,
+            
+            // New database columns
+            external_id: row.question_id || row.Question_ID || null,
+            option_explanations,
+            related_concept: row.related_concept || row.Related_Concept || null,
+            exam_relevance_score: parseFloat(row.expected_cil_probability || row.Expected_CIL_Probability) || null,
+            bloom_level: row.bloom_level || row.Bloom_Level || null,
+            estimated_time_seconds: parseInt(row.estimated_time_seconds || row.Estimated_Time_Seconds) || null,
+            hint,
+            formula: row.formula || row.Formula || null,
+            reference,
+            year: parseInt(row.previous_year_year || row.Previous_Year_Year) || null
           };
 
           const { data: inserted, error: qErr } = await client.from('questions').insert([qPayload]).select().single();
           if (qErr) throw qErr;
 
           // Mapping
-          if (resolvedExam) {
+          if (examId) {
             await client.from('question_exam_map').insert([{
               question_id: inserted.id,
-              exam_id: resolvedExam.id,
+              exam_id: examId,
               subject_id: resolvedSubject?.id || null,
+              chapter_id: resolvedChapter?.id || null,
               topic_id: resolvedTopic?.id || null
             }]);
           }

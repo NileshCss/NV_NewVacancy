@@ -20,6 +20,7 @@ export default function QuestionBankManager() {
   
   // Paste CSV State
   const [csvText, setCsvText] = useState('')
+  const [importExamId, setImportExamId] = useState('')
 
   // AI Import State (for text copy-paste option)
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
@@ -123,10 +124,11 @@ export default function QuestionBankManager() {
   const handleFileImportSubmit = async (e) => {
     e.preventDefault()
     if (!selectedFile) return toast.error('Please select a file first')
+    if (!importExamId) return toast.error('Please select a Target Exam first')
     setIsImportSubmitting(true)
     setImportSummary(null)
     try {
-      const summary = await importQuestionsFile(selectedFile)
+      const summary = await importQuestionsFile(selectedFile, importExamId)
       setImportSummary(summary)
       toast.success('File imported successfully!')
       loadQuestions()
@@ -223,7 +225,7 @@ export default function QuestionBankManager() {
           <button onClick={() => setIsAiModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
             <Sparkles size={18} /> AI Extract
           </button>
-          <button onClick={() => { setIsImportModalOpen(true); setImportSummary(null); setSelectedFile(null); }} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+          <button onClick={() => { setIsImportModalOpen(true); setImportSummary(null); setSelectedFile(null); setImportExamId(filters.exam_id); }} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
             <FileSpreadsheet size={18} /> Bulk Import
           </button>
           <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
@@ -394,7 +396,20 @@ export default function QuestionBankManager() {
                   </div>
 
                   {importTab === 'upload' ? (
-                    <form onSubmit={handleFileImportSubmit} className="space-y-6">
+                    <form onSubmit={handleFileImportSubmit} className="space-y-5">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)]">Target Exam (Required for Subject & Topic resolution)</label>
+                        <select
+                          required
+                          value={importExamId}
+                          onChange={e => setImportExamId(e.target.value)}
+                          className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2.5 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">-- Select Target Exam --</option>
+                          {exams.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                        </select>
+                      </div>
+
                       <div className="border-2 border-dashed border-[var(--border)] rounded-xl p-8 text-center bg-[var(--bg-surface)] hover:bg-[var(--bg-surface)]/80 transition relative">
                         <input
                           type="file"

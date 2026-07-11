@@ -741,14 +741,88 @@ export const reorderSubjects = async (items) => {
   return { success: true }
 }
 
-export const fetchTopics = async (subjectId) => {
+export const fetchChapters = async (subjectId) => {
   try {
-    const res = await adminFetch(`/exam/topics?subject_id=${subjectId}`, { method: 'GET' })
+    const res = await adminFetch(`/exam/chapters?subject_id=${subjectId}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchChapters] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('chapters').select('*').eq('subject_id', subjectId).order('display_order', { ascending: true })
+  if (error) throw dbError(error)
+  return data || []
+}
+
+export const createChapter = async (payload) => {
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch('/exam/chapters', { method: 'POST', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[createChapter] Backend offline or error, falling back to direct Supabase insert:', err.message)
+  }
+  const { data, error } = await freshClient.from('chapters').insert(payload).select().single()
+  if (error) throw dbError(error)
+  return data
+}
+
+export const updateChapter = async (id, payload) => {
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/chapters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[updateChapter] Backend offline or error, falling back to direct Supabase update:', err.message)
+  }
+  const { data, error } = await freshClient.from('chapters').update(payload).eq('id', id).select().single()
+  if (error) throw dbError(error)
+  return data
+}
+
+export const deleteChapter = async (id) => {
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  try {
+    const res = await adminFetch(`/exam/chapters/${id}`, { method: 'DELETE' })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[deleteChapter] Backend offline or error, falling back to direct Supabase delete:', err.message)
+  }
+  const { error } = await freshClient.from('chapters').delete().eq('id', id)
+  if (error) throw dbError(error)
+  return { success: true }
+}
+
+export const reorderChapters = async (items) => {
+  try {
+    const res = await adminFetch('/exam/chapters/reorder', { method: 'PATCH', body: JSON.stringify({ items }) })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[reorderChapters] Backend offline or error, falling back to direct Supabase reordering:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  const promises = items.map(item => 
+    freshClient.from('chapters').update({ display_order: item.display_order }).eq('id', item.id)
+  )
+  await Promise.all(promises)
+  return { success: true }
+}
+
+export const fetchTopics = async (chapterId) => {
+  try {
+    const res = await adminFetch(`/exam/topics?chapter_id=${chapterId}`, { method: 'GET' })
     if (res && res.success) return res.data
   } catch (err) {
     console.warn('[fetchTopics] Backend offline or error, falling back to direct Supabase select:', err.message)
   }
-  const { data, error } = await supabase.from('topics').select('*').eq('subject_id', subjectId).order('display_order', { ascending: true })
+  const { data, error } = await supabase.from('topics').select('*').eq('chapter_id', chapterId).order('display_order', { ascending: true })
   if (error) throw dbError(error)
   return data || []
 }
@@ -937,7 +1011,7 @@ export const extractQuestionsAI = async (rawText) => {
   return res.data
 }
 
-export const importQuestionsFile = async (file) => {
+export const importQuestionsFile = async (file, examId) => {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   const apiBase = getApiBase()

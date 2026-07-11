@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { fetchExams, fetchSubjects, fetchTopics, createTopic, updateTopic, deleteTopic, reorderTopics } from '../../../services/api'
+import { fetchExams, fetchSubjects, fetchChapters, fetchTopics, createTopic, updateTopic, deleteTopic, reorderTopics } from '../../../services/api'
 import { Edit2, Trash2, Plus, Loader2, GripVertical, ChevronRight, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
@@ -35,10 +35,12 @@ function SortableItem({ id, topic, onEdit, onDelete }) {
 export default function TopicsManager() {
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
+  const [chapters, setChapters] = useState([])
   const [topics, setTopics] = useState([])
   
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
+  const [selectedChapterId, setSelectedChapterId] = useState('')
   const [loading, setLoading] = useState(true)
   
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -53,22 +55,57 @@ export default function TopicsManager() {
 
   useEffect(() => {
     fetchExams().then(data => {
-      setExams(data); if(data.length) setSelectedExamId(data[0].id); else setLoading(false)
-    })
+      setExams(data)
+      if (data.length) setSelectedExamId(data[0].id)
+      else setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   useEffect(() => {
-    if (!selectedExamId) return;
+    if (!selectedExamId) return
     fetchSubjects(selectedExamId).then(data => {
-      setSubjects(data); if(data.length) setSelectedSubjectId(data[0].id); else { setSelectedSubjectId(''); setLoading(false) }
+      setSubjects(data)
+      if (data.length) {
+        setSelectedSubjectId(data[0].id)
+      } else {
+        setSelectedSubjectId('')
+        setSelectedChapterId('')
+        setChapters([])
+        setTopics([])
+        setLoading(false)
+      }
     })
   }, [selectedExamId])
 
   useEffect(() => {
-    if (!selectedSubjectId) { setTopics([]); setLoading(false); return }
-    setLoading(true)
-    fetchTopics(selectedSubjectId).then(data => setTopics(data)).catch(()=>toast.error('Error')).finally(()=>setLoading(false))
+    if (!selectedSubjectId) {
+      setChapters([])
+      setSelectedChapterId('')
+      setTopics([])
+      setLoading(false)
+      return
+    }
+    fetchChapters(selectedSubjectId).then(data => {
+      setChapters(data)
+      if (data.length) {
+        setSelectedChapterId(data[0].id)
+      } else {
+        setSelectedChapterId('')
+        setTopics([])
+        setLoading(false)
+      }
+    }).catch(() => setLoading(false))
   }, [selectedSubjectId])
+
+  useEffect(() => {
+    if (!selectedChapterId) {
+      setTopics([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    fetchTopics(selectedChapterId).then(data => setTopics(data)).catch(() => toast.error('Error loading topics')).finally(() => setLoading(false))
+  }, [selectedChapterId])
 
   const handleDragEnd = async (event) => {
     const { active, over } = event
@@ -84,7 +121,7 @@ export default function TopicsManager() {
       toast.success('Order saved')
     } catch (err) {
       toast.error('Failed to save order')
-      fetchTopics(selectedSubjectId).then(setTopics)
+      fetchTopics(selectedChapterId).then(setTopics)
     }
   }
 
@@ -108,10 +145,10 @@ export default function TopicsManager() {
         await updateTopic(editingTopic.id, formData)
         toast.success('Topic updated')
       } else {
-        await createTopic({ ...formData, subject_id: selectedSubjectId, display_order: topics.length })
+        await createTopic({ ...formData, chapter_id: selectedChapterId, display_order: topics.length })
         toast.success('Topic created')
       }
-      setTopics(await fetchTopics(selectedSubjectId))
+      setTopics(await fetchTopics(selectedChapterId))
       setIsModalOpen(false)
     } catch (err) {
       toast.error(err.message || 'Error saving topic')
@@ -125,7 +162,7 @@ export default function TopicsManager() {
     try {
       await deleteTopic(id)
       toast.success('Topic deleted')
-      setTopics(await fetchTopics(selectedSubjectId))
+      setTopics(await fetchTopics(selectedChapterId))
     } catch (err) {
       toast.error('Failed to delete topic')
     }
@@ -138,28 +175,33 @@ export default function TopicsManager() {
           <h2 className="text-xl font-bold text-[var(--text-primary)]">Topics</h2>
           <p className="text-sm text-[var(--text-muted)]">Manage syllabus topics and study material.</p>
         </div>
-        <button onClick={() => handleOpenModal()} disabled={!selectedSubjectId} className="btn-primary flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={() => handleOpenModal()} disabled={!selectedChapterId} className="btn-primary flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm">
           <Plus size={18} /> Add Topic
         </button>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center bg-[var(--bg-card)] p-3 rounded-xl border border-[var(--border)] text-sm">
-        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px]" value={selectedExamId} onChange={e => setSelectedExamId(e.target.value)}>
+        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px] text-[var(--text-primary)]" value={selectedExamId} onChange={e => setSelectedExamId(e.target.value)}>
           <option value="" disabled>Select Exam</option>
           {exams.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
         </select>
         <ChevronRight size={16} className="text-[var(--text-muted)] hidden sm:block" />
-        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px]" value={selectedSubjectId} onChange={e => setSelectedSubjectId(e.target.value)} disabled={!subjects.length}>
+        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px] text-[var(--text-primary)]" value={selectedSubjectId} onChange={e => setSelectedSubjectId(e.target.value)} disabled={!subjects.length}>
           <option value="" disabled>{subjects.length ? "Select Subject" : "No Subjects"}</option>
           {subjects.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
+        </select>
+        <ChevronRight size={16} className="text-[var(--text-muted)] hidden sm:block" />
+        <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 flex-1 min-w-[150px] text-[var(--text-primary)]" value={selectedChapterId} onChange={e => setSelectedChapterId(e.target.value)} disabled={!chapters.length}>
+          <option value="" disabled>{chapters.length ? "Select Chapter" : "No Chapters"}</option>
+          {chapters.map(ch => <option key={ch.id} value={ch.id}>{ch.name}</option>)}
         </select>
       </div>
 
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-500" /></div>
-        ) : !selectedSubjectId ? (
-          <div className="p-8 text-center text-[var(--text-muted)]">Please select a subject.</div>
+        ) : !selectedChapterId ? (
+          <div className="p-8 text-center text-[var(--text-muted)]">Please select a chapter.</div>
         ) : topics.length === 0 ? (
           <div className="p-8 text-center text-[var(--text-muted)]">No topics found. Add one above.</div>
         ) : (

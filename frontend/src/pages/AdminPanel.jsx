@@ -22,6 +22,7 @@ import WhatsAppManager from '../components/admin/WhatsAppManager'
 import ExamCategoriesManager from './admin/exam/ExamCategoriesManager'
 import ExamsManager from './admin/exam/ExamsManager'
 import SubjectsManager from './admin/exam/SubjectsManager'
+import ChaptersManager from './admin/exam/ChaptersManager'
 import TopicsManager from './admin/exam/TopicsManager'
 import QuestionBankManager from './admin/exam/QuestionBankManager'
 
@@ -233,6 +234,7 @@ export default function AdminPanel() {
     { id: 'exam_categories', label: '📚 Exam Categories' },
     { id: 'exams',        label: '📝 Exams' },
     { id: 'subjects',     label: '📖 Subjects' },
+    { id: 'chapters',     label: '🔖 Chapters' },
     { id: 'topics',       label: '📄 Topics' },
     { id: 'questions',    label: '❓ Questions' },
     { id: 'live-updates', label: '📢 Live Updates' },
@@ -432,6 +434,7 @@ export default function AdminPanel() {
         {section === 'exam_categories' && <ExamCategoriesManager />}
         {section === 'exams' && <ExamsManager />}
         {section === 'subjects' && <SubjectsManager />}
+        {section === 'chapters' && <ChaptersManager />}
         {section === 'topics' && <TopicsManager />}
         {section === 'questions' && <QuestionBankManager />}
 
