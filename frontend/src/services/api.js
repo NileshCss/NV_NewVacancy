@@ -372,22 +372,36 @@ export const fetchUsers = async () => {
 }
 
 
-/** Helper: get current session token + api base */
+/** Helper: get current session token + api base with 3-second timeout */
 async function adminFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   const apiBase = getApiBase()
-  const res = await fetch(`${apiBase}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
-  return json
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 3000)
+  
+  try {
+    const res = await fetch(`${apiBase}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
+    return json
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err.name === 'AbortError') {
+      throw new Error('Connection timed out')
+    }
+    throw err
+  }
 }
 
 // ── JOB URL SCRAPER ────────────────────────────────────────────────────────
@@ -887,6 +901,7 @@ export const fetchQuestions = async (params = {}) => {
   if (params.difficulty) query = query.eq('difficulty', params.difficulty)
   if (params.status) query = query.eq('status', params.status)
   if (params.search) query = query.ilike('question_text', `%${params.search}%`)
+  if (params.tag) query = query.contains('tags', [params.tag])
   const { data, error } = await query.order('created_at', { ascending: false }).limit(100)
   if (error) throw dbError(error)
   
@@ -994,6 +1009,27 @@ export const bulkImportQuestions = async (csvData, mappings) => {
 export const extractQuestionsAI = async (rawText) => {
   const res = await adminFetch('/exam/questions/extract-ai', { method: 'POST', body: JSON.stringify({ rawText }) })
   return res.data
+}
+
+export const importQuestionsFile = async (file) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const apiBase = getApiBase()
+  
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  const res = await fetch(`${apiBase}/exam/questions/import-file`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: formData
+  })
+  
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || `Upload failed (${res.status})`)
+  return json.data
 }
 
 

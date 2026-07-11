@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { fetchQuestions, fetchExams, fetchSubjects, fetchChapters, fetchTopics, createQuestion, updateQuestion, updateQuestionStatus, deleteQuestion, bulkImportQuestions, extractQuestionsAI } from '../../../services/api'
-import { Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet, Filter, Search, ChevronRight } from 'lucide-react'
+import { fetchQuestions, fetchExams, fetchSubjects, fetchChapters, fetchTopics, createQuestion, updateQuestion, updateQuestionStatus, deleteQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
+import { Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet, Filter, Search, ChevronRight, Upload, File, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react'
 import QuestionEditor from './QuestionEditor'
 import toast from 'react-hot-toast'
 
@@ -11,15 +11,18 @@ export default function QuestionBankManager() {
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [exams, setExams] = useState([])
   
-  // Modals state
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+  // Unified Import Modal state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [importTab, setImportTab] = useState('upload') // 'upload' or 'paste'
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [isImportSubmitting, setIsImportSubmitting] = useState(false)
+  const [importSummary, setImportSummary] = useState(null)
   
-  // CSV Import State
+  // Paste CSV State
   const [csvText, setCsvText] = useState('')
-  const [isCsvSubmitting, setIsCsvSubmitting] = useState(false)
 
-  // AI Import State
+  // AI Import State (for text copy-paste option)
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false)
   const [aiRawText, setAiRawText] = useState('')
   const [isAiExtracting, setIsAiExtracting] = useState(false)
   const [extractedQuestions, setExtractedQuestions] = useState([])
@@ -29,8 +32,20 @@ export default function QuestionBankManager() {
     exam_id: '',
     difficulty: '',
     status: '',
-    search: ''
+    search: '',
+    tag: ''
   })
+
+  // Deep Link tag parser
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlTag = params.get('tag')
+    if (urlTag) {
+      setFilters(prev => ({ ...prev, status: 'draft', tag: urlTag }))
+      // Clear parameter from URL bar to prevent looping on page reloads
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   const loadQuestions = async () => {
     try {
@@ -99,21 +114,52 @@ export default function QuestionBankManager() {
     }
   }
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0])
+    }
+  }
+
+  const handleFileImportSubmit = async (e) => {
+    e.preventDefault()
+    if (!selectedFile) return toast.error('Please select a file first')
+    setIsImportSubmitting(true)
+    setImportSummary(null)
+    try {
+      const summary = await importQuestionsFile(selectedFile)
+      setImportSummary(summary)
+      toast.success('File imported successfully!')
+      loadQuestions()
+    } catch (err) {
+      toast.error(err.message || 'File import failed')
+    } finally {
+      setIsImportSubmitting(false)
+    }
+  }
+
   const handleCsvSubmit = async (e) => {
     e.preventDefault()
     if (!csvText.trim()) return toast.error('Please paste CSV data first')
-    setIsCsvSubmitting(true)
+    setIsImportSubmitting(true)
+    setImportSummary(null)
     try {
       const mappings = filters.exam_id ? [{ exam_id: filters.exam_id }] : []
       const res = await bulkImportQuestions(csvText, mappings)
-      toast.success(`Import complete! Succeeded: ${res.successCount}, Duplicates: ${res.duplicateCount}, Failed: ${res.failedCount}`)
-      setIsCsvModalOpen(false)
+      setImportSummary({
+        total: res.successCount + res.duplicateCount + res.failedCount,
+        successCount: res.successCount,
+        duplicateCount: res.duplicateCount,
+        failedCount: res.failedCount,
+        unresolvedRefs: [],
+        logId: null
+      })
+      toast.success('CSV Paste imported successfully!')
       setCsvText('')
       loadQuestions()
     } catch (err) {
       toast.error(err.message || 'CSV Import failed')
     } finally {
-      setIsCsvSubmitting(false)
+      setIsImportSubmitting(false)
     }
   }
 
@@ -152,6 +198,19 @@ export default function QuestionBankManager() {
     }
   }
 
+  const handleApplyBatchFilter = (logId) => {
+    setFilters({
+      exam_id: '',
+      difficulty: '',
+      status: 'draft',
+      search: '',
+      tag: `batch_${logId}`
+    })
+    setIsImportModalOpen(false)
+    setSelectedFile(null)
+    setImportSummary(null)
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Main Actions */}
@@ -164,8 +223,8 @@ export default function QuestionBankManager() {
           <button onClick={() => setIsAiModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
             <Sparkles size={18} /> AI Extract
           </button>
-          <button onClick={() => setIsCsvModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
-            <FileSpreadsheet size={18} /> Bulk Import (CSV)
+          <button onClick={() => { setIsImportModalOpen(true); setImportSummary(null); setSelectedFile(null); }} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+            <FileSpreadsheet size={18} /> Bulk Import
           </button>
           <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             <Plus size={18} /> Add Question
@@ -196,6 +255,13 @@ export default function QuestionBankManager() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          {filters.tag && (
+            <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800 text-sm font-semibold">
+              <span>Batch Filter Active</span>
+              <button onClick={() => setFilters(prev => ({ ...prev, tag: '' }))} className="text-purple-500 hover:text-purple-700 font-bold ml-1">✕</button>
+            </div>
+          )}
+
           <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 text-sm text-[var(--text-primary)]"
                   value={filters.exam_id} onChange={e => setFilters({ ...filters, exam_id: e.target.value })}>
             <option value="">All Exams</option>
@@ -292,29 +358,182 @@ export default function QuestionBankManager() {
         )}
       </div>
 
-      {/* CSV Import Modal */}
-      {isCsvModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsCsvModalOpen(false)}>
-          <div className="bg-[var(--bg-card)] rounded-xl w-full max-w-lg shadow-2xl border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+      {/* Unified Bulk Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setIsImportModalOpen(false)}>
+          <div className="bg-[var(--bg-card)] rounded-xl w-full max-w-2xl shadow-2xl border border-[var(--border)] my-8" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Bulk CSV Import</h3>
-              <button onClick={() => setIsCsvModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+              <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <FileSpreadsheet className="text-green-500" size={22} /> Bulk Import Questions
+              </h3>
+              <button onClick={() => setIsImportModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
-            <form onSubmit={handleCsvSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Paste CSV Data</label>
-                <textarea rows={10} required className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2.5 font-mono text-xs text-[var(--text-primary)]"
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {!importSummary ? (
+                <>
+                  {/* Tabs */}
+                  <div className="flex border-b border-[var(--border)]">
+                    <button
+                      onClick={() => setImportTab('upload')}
+                      className={`pb-3 px-4 text-sm font-semibold border-b-2 transition ${
+                        importTab === 'upload' ? 'border-blue-500 text-blue-500' : 'border-transparent text-[var(--text-muted)]'
+                      }`}
+                    >
+                      Upload File (.xlsx, .csv, .pdf)
+                    </button>
+                    <button
+                      onClick={() => setImportTab('paste')}
+                      className={`pb-3 px-4 text-sm font-semibold border-b-2 transition ${
+                        importTab === 'paste' ? 'border-blue-500 text-blue-500' : 'border-transparent text-[var(--text-muted)]'
+                      }`}
+                    >
+                      Paste CSV Text
+                    </button>
+                  </div>
+
+                  {importTab === 'upload' ? (
+                    <form onSubmit={handleFileImportSubmit} className="space-y-6">
+                      <div className="border-2 border-dashed border-[var(--border)] rounded-xl p-8 text-center bg-[var(--bg-surface)] hover:bg-[var(--bg-surface)]/80 transition relative">
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.csv,.pdf"
+                          onChange={handleFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-full">
+                            <Upload size={24} />
+                          </div>
+                          <div>
+                            <span className="text-sm font-semibold text-[var(--text-primary)]">
+                              {selectedFile ? selectedFile.name : 'Click to select or drag and drop a file'}
+                            </span>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                              Supports Excel (.xlsx, .xls), CSV (.csv) or Question Paper PDF (.pdf)
+                            </p>
+                          </div>
+                          {selectedFile && (
+                            <span className="text-xs font-mono bg-[var(--bg-card)] px-2.5 py-1 border border-[var(--border)] rounded text-[var(--text-secondary)] mt-2">
+                              {(selectedFile.size / 1024).toFixed(1)} KB
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 dark:bg-blue-950/10 border border-blue-200 dark:border-blue-900/30 rounded-xl p-4 text-xs space-y-2 text-blue-700 dark:text-blue-300">
+                        <strong className="block text-sm">💡 Expected Document Formats:</strong>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li><strong>Excel/CSV:</strong> Must include columns: <code>question_text</code>, <code>option_a</code>, <code>option_b</code>, <code>option_c</code>, <code>option_d</code>, <code>correct_answer</code> (A/B/C/D or index). Optional: <code>explanation</code>, <code>difficulty</code>, <code>exam_name</code>, <code>subject_name</code>, etc.</li>
+                          <li><strong>PDF:</strong> Raw text is extracted and auto-parsed using local Ollama model context in chunks.</li>
+                        </ul>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+                        <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--border)] rounded-lg text-sm text-[var(--text-secondary)]">Cancel</button>
+                        <button type="submit" disabled={isImportSubmitting || !selectedFile} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center min-w-[120px]">
+                          {isImportSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+                          {isImportSubmitting ? 'Importing...' : 'Upload & Import'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleCsvSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Paste CSV Data</label>
+                        <textarea
+                          rows={8}
+                          required
+                          className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2.5 font-mono text-xs text-[var(--text-primary)]"
                           placeholder={`question_text,question_type,options,correct_answer,difficulty\n"What is 2+2?","mcq","[""3"",""4"",""5""]","{""indices"":[1]}","easy"`}
-                          value={csvText} onChange={e => setCsvText(e.target.value)} />
-              </div>
-              <p className="text-xs text-[var(--text-muted)]">Tip: Use double-quotes to escape lists or JSON strings in options/correct_answer.</p>
-              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
-                <button type="button" onClick={() => setIsCsvModalOpen(false)} className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--border)] rounded-lg text-sm text-[var(--text-secondary)]">Cancel</button>
-                <button type="submit" disabled={isCsvSubmitting} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center min-w-[100px]">
-                  {isCsvSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Import'}
-                </button>
-              </div>
-            </form>
+                          value={csvText}
+                          onChange={e => setCsvText(e.target.value)}
+                        />
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)]">Tip: Use double-quotes to escape lists or JSON strings in options/correct_answer.</p>
+                      <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+                        <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--border)] rounded-lg text-sm text-[var(--text-secondary)]">Cancel</button>
+                        <button type="submit" disabled={isImportSubmitting} className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center min-w-[100px]">
+                          {isImportSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+                          {isImportSubmitting ? 'Importing...' : 'Import'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              ) : (
+                /* Import Summary UI */
+                <div className="space-y-6">
+                  <div className="text-center space-y-2 py-4">
+                    <div className="inline-flex p-3 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 rounded-full">
+                      <CheckCircle2 size={36} />
+                    </div>
+                    <h4 className="text-lg font-bold text-[var(--text-primary)]">Import Processing Complete!</h4>
+                    <p className="text-sm text-[var(--text-muted)]">Your document has been processed and saved into drafts.</p>
+                  </div>
+
+                  {/* Summary Tiles */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-4 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl text-center">
+                      <div className="text-2xl font-extrabold text-[var(--text-primary)]">{importSummary.total}</div>
+                      <div className="text-xs text-[var(--text-muted)] mt-1">Questions Found</div>
+                    </div>
+                    <div className="p-4 bg-green-50/50 dark:bg-green-950/10 border border-green-200/50 dark:border-green-900/20 rounded-xl text-center">
+                      <div className="text-2xl font-extrabold text-green-600 dark:text-green-400">{importSummary.successCount}</div>
+                      <div className="text-xs text-green-700 dark:text-green-300 mt-1">Successfully Imported</div>
+                    </div>
+                    <div className="p-4 bg-yellow-50/50 dark:bg-yellow-950/10 border border-yellow-200/50 dark:border-yellow-900/20 rounded-xl text-center">
+                      <div className="text-2xl font-extrabold text-yellow-600 dark:text-yellow-400">{importSummary.duplicateCount}</div>
+                      <div className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">Flagged Duplicates</div>
+                    </div>
+                    <div className="p-4 bg-red-50/50 dark:bg-red-950/10 border border-red-200/50 dark:border-red-900/20 rounded-xl text-center">
+                      <div className="text-2xl font-extrabold text-red-600 dark:text-red-400">{importSummary.failedCount}</div>
+                      <div className="text-xs text-red-700 dark:text-red-300 mt-1">Failed to Parse</div>
+                    </div>
+                  </div>
+
+                  {/* Unresolved Taxonomy References */}
+                  {importSummary.unresolvedRefs && importSummary.unresolvedRefs.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold text-sm">
+                        <AlertTriangle size={18} />
+                        <span>Unresolved Exam/Subject/Chapter references ({importSummary.unresolvedRefs.length})</span>
+                      </div>
+                      <div className="max-h-[150px] overflow-y-auto pr-2 space-y-1.5 text-xs text-amber-800 dark:text-amber-400 font-mono">
+                        {importSummary.unresolvedRefs.map((ref, idx) => (
+                          <div key={idx}>
+                            Row {ref.row}: The {ref.type} name <span className="underline font-bold">"{ref.name}"</span> does not match any existing records.
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-amber-600 dark:text-amber-500 pt-1">
+                        Note: The questions were still imported, but without these mapping relations.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Footer Actions */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-[var(--border)]">
+                    <button
+                      type="button"
+                      onClick={() => setIsImportModalOpen(false)}
+                      className="w-full sm:w-auto px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--border)] rounded-lg text-sm text-[var(--text-secondary)] text-center font-medium"
+                    >
+                      Close Summary
+                    </button>
+                    {importSummary.logId && (
+                      <button
+                        onClick={() => handleApplyBatchFilter(importSummary.logId)}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold shadow-lg shadow-purple-500/25 hover:shadow-purple-600/30 transition-all duration-200"
+                      >
+                        Review Drafts in this Batch <ChevronRight size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

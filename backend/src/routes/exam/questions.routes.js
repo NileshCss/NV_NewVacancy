@@ -19,6 +19,9 @@ const softAuth = async (req, res, next) => {
   next();
 };
 
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
 // Public/Admin list & view
 router.get('/', softAuth, questionsController.listQuestions);
 router.get('/:id', softAuth, questionsController.getQuestion);
@@ -30,5 +33,6 @@ router.patch('/:id/status', requireAdmin, questionsController.updateQuestionStat
 router.delete('/:id', requireAdmin, questionsController.deleteQuestion);
 router.post('/bulk-import', requireAdmin, questionsController.bulkImportCsv);
 router.post('/extract-ai', requireAdmin, questionsController.extractQuestionsAI);
+router.post('/import-file', requireAdmin, upload.single('file'), questionsController.importFile);
 
 module.exports = router;
