@@ -1,12 +1,13 @@
 'use strict';
 
-const { supabaseAdmin, supabaseRegular } = require('../../middleware/rbac');
+const { getClientForRequest } = require('../../middleware/rbac');
 const logger = require('../../utils/logger');
 
 // GET / (Public - anyone can list categories)
 exports.listCategories = async (req, res) => {
   try {
-    const { data, error } = await supabaseRegular
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exam_categories')
       .select('*')
       .order('display_order', { ascending: true })
@@ -24,7 +25,8 @@ exports.listCategories = async (req, res) => {
 exports.getCategory = async (req, res) => {
   try {
     const { slug } = req.params;
-    const { data, error } = await supabaseRegular
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exam_categories')
       .select('*')
       .eq('slug', slug)
@@ -46,7 +48,8 @@ exports.createCategory = async (req, res) => {
     const { name, slug, icon, display_order } = req.body;
     if (!name || !slug) return res.status(400).json({ success: false, error: 'Name and slug are required' });
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exam_categories')
       .insert([{ name, slug, icon, display_order }])
       .select()
@@ -66,7 +69,8 @@ exports.updateCategory = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exam_categories')
       .update(updates)
       .eq('id', id)
@@ -85,7 +89,8 @@ exports.updateCategory = async (req, res) => {
 exports.deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { error } = await client
       .from('exam_categories')
       .delete()
       .eq('id', id);

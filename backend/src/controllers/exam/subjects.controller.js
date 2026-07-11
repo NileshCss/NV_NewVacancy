@@ -1,6 +1,6 @@
 'use strict';
 
-const { supabaseAdmin, supabaseRegular } = require('../../middleware/rbac');
+const { getClientForRequest } = require('../../middleware/rbac');
 const logger = require('../../utils/logger');
 
 // GET /
@@ -9,9 +9,7 @@ exports.listSubjects = async (req, res) => {
     const { exam_id } = req.query;
     if (!exam_id) return res.status(400).json({ success: false, error: 'exam_id is required' });
 
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
-        ? supabaseAdmin 
-        : supabaseRegular;
+    const client = getClientForRequest(req);
 
     let query = client
       .from('subjects')
@@ -39,7 +37,8 @@ exports.createSubject = async (req, res) => {
     const { exam_id, name, icon, image_url, display_order, enabled } = req.body;
     if (!exam_id || !name) return res.status(400).json({ success: false, error: 'exam_id and name are required' });
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('subjects')
       .insert([{ exam_id, name, icon, image_url, display_order, enabled: enabled !== false }])
       .select()
@@ -57,7 +56,8 @@ exports.createSubject = async (req, res) => {
 exports.updateSubject = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('subjects')
       .update(req.body)
       .eq('id', id)
@@ -76,7 +76,8 @@ exports.updateSubject = async (req, res) => {
 exports.deleteSubject = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { error } = await client
       .from('subjects')
       .delete()
       .eq('id', id);
@@ -95,13 +96,9 @@ exports.reorderSubjects = async (req, res) => {
     const { items } = req.body; // array of { id, display_order }
     if (!Array.isArray(items)) return res.status(400).json({ success: false, error: 'items array is required' });
 
-    // Supabase JS doesn't have a bulk update easily without custom RPC or upsert.
-    // Upsert needs the unique keys. We can just loop and await (slow but works for small lists), 
-    // or use bulk upsert if we provide all required fields, but we only have id and display_order.
-    
-    // So we'll use Promise.all
+    const client = getClientForRequest(req);
     const promises = items.map(item => 
-      supabaseAdmin.from('subjects').update({ display_order: item.display_order }).eq('id', item.id)
+      client.from('subjects').update({ display_order: item.display_order }).eq('id', item.id)
     );
     await Promise.all(promises);
 

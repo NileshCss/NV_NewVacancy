@@ -1,20 +1,13 @@
 'use strict';
 
-const { supabaseAdmin, supabaseRegular } = require('../../middleware/rbac');
+const { getClientForRequest } = require('../../middleware/rbac');
 const logger = require('../../utils/logger');
 
-// GET / (Public - gets only published. Admins can pass ?all=true to get all via admin route if needed, but we'll use RLS)
+// GET /
 exports.listExams = async (req, res) => {
   try {
     const { category_id } = req.query;
-    
-    // We use the regular client. RLS policy "public read published exams" will restrict
-    // non-admins to status = 'published'.
-    // BUT we need to ensure admin can see all if they pass their token.
-    // However, if the token is passed, supabaseRegular handles it.
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
-        ? supabaseAdmin 
-        : supabaseRegular;
+    const client = getClientForRequest(req);
 
     let query = client
       .from('exams')
@@ -44,9 +37,7 @@ exports.listExams = async (req, res) => {
 exports.getExam = async (req, res) => {
   try {
     const { slug } = req.params;
-    const client = req.user && ['admin', 'super_admin'].includes(req.user.role) 
-        ? supabaseAdmin 
-        : supabaseRegular;
+    const client = getClientForRequest(req);
 
     const { data, error } = await client
       .from('exams')
@@ -73,7 +64,8 @@ exports.createExam = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Name, slug, and category_id are required' });
     }
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exams')
       .insert([{ 
         category_id, name, slug, description, eligibility, age_limit, 
@@ -98,7 +90,8 @@ exports.updateExam = async (req, res) => {
     const { id } = req.params;
     const updates = { ...req.body, updated_at: new Date().toISOString() };
 
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exams')
       .update(updates)
       .eq('id', id)
@@ -117,7 +110,8 @@ exports.updateExam = async (req, res) => {
 exports.deleteExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { error } = await client
       .from('exams')
       .delete()
       .eq('id', id);
@@ -134,7 +128,8 @@ exports.deleteExam = async (req, res) => {
 exports.publishExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exams')
       .update({ status: 'published', published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', id)
@@ -153,7 +148,8 @@ exports.publishExam = async (req, res) => {
 exports.archiveExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabaseAdmin
+    const client = getClientForRequest(req);
+    const { data, error } = await client
       .from('exams')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
       .eq('id', id)
