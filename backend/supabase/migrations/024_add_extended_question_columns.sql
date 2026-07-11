@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.chapters (
 
 -- 2. Alter public.topics to link to chapters(id) instead of subjects
 ALTER TABLE public.topics ADD COLUMN IF NOT EXISTS chapter_id uuid REFERENCES public.chapters(id) ON DELETE CASCADE;
-ALTER TABLE public.topics DROP COLUMN IF EXISTS subject_id;
+ALTER TABLE public.topics DROP COLUMN IF EXISTS subject_id CASCADE;
 
 -- 3. Alter question_exam_map to add chapter_id back
 ALTER TABLE public.question_exam_map ADD COLUMN IF NOT EXISTS chapter_id uuid REFERENCES public.chapters(id) ON DELETE SET NULL;
