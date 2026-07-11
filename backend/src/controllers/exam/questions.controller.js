@@ -403,6 +403,10 @@ exports.importFile = async (req, res) => {
       let { data: dbSubjects } = await client.from('subjects').select('id, name').eq('exam_id', examId);
       if (!dbSubjects) dbSubjects = [];
 
+      // Cache objects to prevent repetitive database calls inside the loop
+      const chaptersCache = {};
+      const topicsCache = {};
+
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         try {
@@ -436,9 +440,12 @@ exports.importFile = async (req, res) => {
             // Resolve Chapter (maps to CSV Topic)
             const chapterName = (row.Topic || row.topic || row.topic_name || '').trim();
             if (chapterName && resolvedSubject) {
-              // Fetch chapters under this subject
-              let { data: dbChapters } = await client.from('chapters').select('id, name').eq('subject_id', resolvedSubject.id);
-              if (!dbChapters) dbChapters = [];
+              // Fetch chapters under this subject (use cache)
+              if (!chaptersCache[resolvedSubject.id]) {
+                let { data: dbChapters } = await client.from('chapters').select('id, name').eq('subject_id', resolvedSubject.id);
+                chaptersCache[resolvedSubject.id] = dbChapters || [];
+              }
+              const dbChapters = chaptersCache[resolvedSubject.id];
 
               resolvedChapter = dbChapters.find(c => c.name.trim().toLowerCase() === chapterName.toLowerCase());
               if (!resolvedChapter) {
@@ -450,14 +457,18 @@ exports.importFile = async (req, res) => {
                   .single();
                 if (chapErr) throw new Error(`Failed to create Chapter "${chapterName}": ${chapErr.message}`);
                 resolvedChapter = newChap;
+                dbChapters.push(newChap);
               }
 
               // Resolve Topic (maps to CSV Subtopic)
               const topicName = (row.Subtopic || row.subtopic || row.subtopic_name || '').trim();
               if (topicName && resolvedChapter) {
-                // Fetch topics under this chapter
-                let { data: dbTopics } = await client.from('topics').select('id, name').eq('chapter_id', resolvedChapter.id);
-                if (!dbTopics) dbTopics = [];
+                // Fetch topics under this chapter (use cache)
+                if (!topicsCache[resolvedChapter.id]) {
+                  let { data: dbTopics } = await client.from('topics').select('id, name').eq('chapter_id', resolvedChapter.id);
+                  topicsCache[resolvedChapter.id] = dbTopics || [];
+                }
+                const dbTopics = topicsCache[resolvedChapter.id];
 
                 resolvedTopic = dbTopics.find(t => t.name.trim().toLowerCase() === topicName.toLowerCase());
                 if (!resolvedTopic) {
@@ -469,6 +480,7 @@ exports.importFile = async (req, res) => {
                     .single();
                   if (topicErr) throw new Error(`Failed to create Topic "${topicName}": ${topicErr.message}`);
                   resolvedTopic = newTopic;
+                  dbTopics.push(newTopic);
                 }
               }
             }

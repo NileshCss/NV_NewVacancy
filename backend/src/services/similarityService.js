@@ -27,12 +27,24 @@ function levenshteinDistance(a, b) {
 
 /**
  * Calculates similarity coefficient (0 to 1) based on Levenshtein distance
+ * with length-based pruning to avoid heavy CPU cycles.
  */
-function calculateSimilarity(s1, s2) {
+function calculateSimilarity(s1, s2, threshold = 0.85) {
   const str1 = String(s1 || '').trim().toLowerCase();
   const str2 = String(s2 || '').trim().toLowerCase();
+  
+  if (str1 === str2) return 1.0;
+  
   const maxLen = Math.max(str1.length, str2.length);
   if (maxLen === 0) return 1.0;
+  
+  // Pruning: if the length difference is too large, it's impossible to meet the threshold
+  const lengthDiff = Math.abs(str1.length - str2.length);
+  const maxAllowedDistance = Math.floor(maxLen * (1 - threshold));
+  if (lengthDiff > maxAllowedDistance) {
+    return 0.0;
+  }
+  
   const distance = levenshteinDistance(str1, str2);
   return (maxLen - distance) / maxLen;
 }
@@ -45,7 +57,7 @@ exports.checkDuplicate = (newQuestionText, existingQuestions, threshold = 0.85) 
   if (!newQuestionText || !existingQuestions || existingQuestions.length === 0) return null;
   
   for (const q of existingQuestions) {
-    const score = calculateSimilarity(newQuestionText, q.question_text);
+    const score = calculateSimilarity(newQuestionText, q.question_text, threshold);
     if (score >= threshold) {
       return { id: q.id, question_text: q.question_text, similarity: score };
     }
