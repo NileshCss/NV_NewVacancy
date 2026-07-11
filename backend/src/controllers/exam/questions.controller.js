@@ -4,8 +4,93 @@ const { supabaseAdmin, supabaseRegular, getClientForRequest } = require('../../m
 const logger = require('../../utils/logger');
 const similarityService = require('../../services/similarityService');
 const questionExtractorService = require('../../services/questionExtractorService');
+const usageEnforcement = require('../../services/subscription/usageEnforcement.service');
 const Papa = require('papaparse');
 const XLSX = require('xlsx');
+
+// Helper function to evaluate and sanitize question gating
+async function checkAndSanitizeQuestions(questions, req) {
+  let isLimitExceeded = false;
+  let hasPyqAccess = true;
+  let hasInterviewAccess = true;
+
+  if (req.user && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    try {
+      const limitsData = await usageEnforcement.getStudentUsageAndLimits(req.user.id);
+      const limit = limitsData.limits.questionsLimit;
+      const used = limitsData.usage.questionsUsed;
+      if (limit !== null && used >= limit) {
+        isLimitExceeded = true;
+      }
+      hasPyqAccess = await usageEnforcement.checkFeaturePermission(req.user.id, 'previous_year_papers');
+      hasInterviewAccess = await usageEnforcement.checkFeaturePermission(req.user.id, 'interview_questions');
+    } catch (err) {
+      logger.error('Error fetching student limits for gating:', err);
+    }
+  } else if (!req.user) {
+    // If not logged in, treat as limited/Free with 0 usage, but restrict interview questions or require login.
+    // For EdTech, require login to practice.
+    isLimitExceeded = true;
+  }
+
+  const isArray = Array.isArray(questions);
+  const list = isArray ? questions : [questions];
+
+  const processed = list.map(q => {
+    let locked = false;
+    let reason = null;
+
+    if (isLimitExceeded) {
+      locked = true;
+      reason = 'LIMIT_EXCEEDED';
+    } else {
+      const isPyq = q.question_type === 'previous_year_question' || !!q.reference || !!q.year;
+      if (isPyq && !hasPyqAccess) {
+        locked = true;
+        reason = 'PREVIOUS_YEAR_PAPERS_LOCKED';
+      } else {
+        const isInterview = q.question_type === 'interview_question' || (q.tags && q.tags.includes('interview-relevant'));
+        if (isInterview && !hasInterviewAccess) {
+          locked = true;
+          reason = 'INTERVIEW_QUESTIONS_LOCKED';
+        }
+      }
+    }
+
+    if (locked) {
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        difficulty: q.difficulty,
+        status: q.status,
+        tags: q.tags,
+        reference: q.reference,
+        year: q.year,
+        marks: q.marks,
+        negative_marks: q.negative_marks,
+        question_exam_map: q.question_exam_map,
+        is_locked: true,
+        lock_reason: reason,
+        options: null,
+        correct_answer: null,
+        explanation: 'Upgrade to a Premium plan to unlock options, answers, and explanations.',
+        solution_text: null,
+        option_explanations: null,
+        formula: null,
+        hint: null,
+        code_block: null
+      };
+    }
+
+    return {
+      ...q,
+      is_locked: false
+    };
+  });
+
+  return isArray ? processed : processed[0];
+}
 
 // GET / - List Questions (Admin sees all, Public sees approved)
 exports.listQuestions = async (req, res) => {
@@ -41,7 +126,8 @@ exports.listQuestions = async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: results });
+    const sanitizedResults = await checkAndSanitizeQuestions(results, req);
+    res.json({ success: true, data: sanitizedResults });
   } catch (err) {
     logger.error('Error listing questions:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -58,7 +144,8 @@ exports.getQuestion = async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Question not found' });
     
-    res.json({ success: true, data });
+    const sanitizedData = await checkAndSanitizeQuestions(data, req);
+    res.json({ success: true, data: sanitizedData });
   } catch (err) {
     logger.error('Error fetching question:', err);
     res.status(500).json({ success: false, error: err.message });

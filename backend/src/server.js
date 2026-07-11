@@ -22,6 +22,7 @@ const subjectsRoutes       = require('./routes/exam/subjects.routes');
 const chaptersRoutes       = require('./routes/exam/chapters.routes');
 const topicsRoutes         = require('./routes/exam/topics.routes');
 const questionsRoutes      = require('./routes/exam/questions.routes');
+const subscriptionRoutes   = require('./routes/subscription.routes');
 const sitemapRoutes    = require('./routes/sitemap');
 const whatsappService  = require('./services/whatsappService');
 const { startExpiryJob }          = require('./jobs/expiryJob');
@@ -75,6 +76,7 @@ app.use('/api/exam/subjects', subjectsRoutes);
 app.use('/api/exam/chapters', chaptersRoutes);
 app.use('/api/exam/topics', topicsRoutes);
 app.use('/api/exam/questions', questionsRoutes);
+app.use('/api/subscription',   subscriptionRoutes);
 app.use('/',               sitemapRoutes);   // /sitemap.xml, /robots.txt
 
 // ── Health check ──────────────────────────────────────────────────────────────
