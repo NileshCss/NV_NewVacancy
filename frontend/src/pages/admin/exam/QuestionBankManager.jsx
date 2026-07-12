@@ -489,7 +489,7 @@ export default function QuestionBankManager() {
                   </div>
 
                   {/* Summary Tiles */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-4 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl text-center">
                       <div className="text-2xl font-extrabold text-[var(--text-primary)]">{importSummary.total}</div>
                       <div className="text-xs text-[var(--text-muted)] mt-1">Questions Found</div>

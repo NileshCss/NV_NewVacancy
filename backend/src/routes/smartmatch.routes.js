@@ -4,7 +4,7 @@ const router        = express.Router();
 const supabase      = require('../config/supabase');
 const { runSmartMatch }      = require('../engines/smartmatch');
 const { handleUpload }       = require('../middleware/upload');
-const { optionalAuth }       = require('../middleware/auth');
+const { authenticate }       = require('../middleware/auth');
 const { analysisRateLimit }  = require('../middleware/rateLimit');
 
 /**
@@ -15,7 +15,7 @@ const { analysisRateLimit }  = require('../middleware/rateLimit');
 router.post(
   '/analyze',
   handleUpload,
-  optionalAuth,
+  authenticate,
   analysisRateLimit,
   async (req, res) => {
     const startTime = Date.now();
@@ -103,10 +103,10 @@ router.post(
  * GET /api/smartmatch/history
  * Get user's past analyses (auth required)
  */
-router.get('/history', optionalAuth, async (req, res) => {
+router.get('/history', authenticate, async (req, res) => {
   try {
     if (!req.user) {
-      return res.json({ success: true, data: [] });
+      return res.status(401).json({ success: false, error: 'Authentication required', code: 'AUTH_REQUIRED' });
     }
 
     const { data, error } = await supabase
@@ -132,13 +132,13 @@ router.get('/history', optionalAuth, async (req, res) => {
  * GET /api/smartmatch/result/:id
  * Get a specific analysis result
  */
-router.get('/result/:id', optionalAuth, async (req, res) => {
+router.get('/result/:id', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('resume_analyses')
       .select('*')
       .eq('id', req.params.id)
-      .eq('user_id', req.user?.id || '')
+      .eq('user_id', req.user.id)
       .single();
 
     if (error || !data) {

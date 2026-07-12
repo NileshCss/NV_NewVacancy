@@ -30,7 +30,7 @@ export default function MockTestPlayer() {
   const [tabSwitches, setTabSwitches] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
-  const [paletteOpen, setPaletteOpen] = useState(true)
+  const [paletteOpen, setPaletteOpen] = useState(window.innerWidth >= 1024)
 
   const timerRef = useRef(null)
   const answersRef = useRef(answers)
@@ -474,9 +474,17 @@ export default function MockTestPlayer() {
           )}
         </div>
 
+        {/* Mobile Backdrop Overlay for Palette Drawer */}
+        {paletteOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            onClick={() => setPaletteOpen(false)}
+          />
+        )}
+
         {/* Right Side: Palette Pane (collapsible) */}
         {paletteOpen && (
-          <div className="w-full lg:w-80 bg-[var(--bg-card)] border-t lg:border-t-0 lg:border-l border-[var(--border)] p-4 overflow-y-auto max-h-[calc(100vh-140px)] flex flex-col justify-between shrink-0">
+          <div className="fixed lg:relative bottom-0 lg:bottom-auto inset-x-0 lg:inset-x-auto z-50 lg:z-0 w-full lg:w-80 bg-[var(--bg-card)] border-t lg:border-t-0 lg:border-l border-[var(--border)] p-4 overflow-y-auto max-h-[75vh] lg:max-h-[calc(100vh-140px)] flex flex-col justify-between shrink-0 rounded-t-3xl lg:rounded-t-none shadow-2xl lg:shadow-none animate-in slide-in-from-bottom duration-250">
             <div>
               {/* Palette Stats summary */}
               <div className="grid grid-cols-2 gap-2 text-center text-xs mb-4">
@@ -515,7 +523,11 @@ export default function MockTestPlayer() {
                   return (
                     <button 
                       key={q.id}
-                      onClick={() => { setCurrentIdx(idx); setVisited(prev => new Set([...prev, idx])) }}
+                      onClick={() => {
+                        setCurrentIdx(idx)
+                        setVisited(prev => new Set([...prev, idx]))
+                        if (window.innerWidth < 1024) setPaletteOpen(false)
+                      }}
                       className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center font-bold text-sm transition-all ${btnClass} ${
                         isActive ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900' : ''
                       }`}

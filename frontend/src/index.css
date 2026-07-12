@@ -540,6 +540,7 @@ img{max-width:100%}
 .admin-title{font-size:1.4rem;font-weight:800;color:#fff}
 .admin-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
 @media(max-width:900px){.admin-cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.admin-cards{grid-template-columns:1fr !important}}
 .admin-stat-card{background:rgba(22,32,50,.7);border:1px solid var(--white-8);border-radius:16px;padding:1.25rem}
 .admin-stat-icon{font-size:1.5rem;margin-bottom:.5rem}
 .admin-stat-val{font-size:1.7rem;font-weight:800;color:#fff;font-family:'Sora',sans-serif}

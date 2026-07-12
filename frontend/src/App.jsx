@@ -14,6 +14,7 @@ import SavedJobsPage    from './pages/SavedJobsPage'
 import AdminPanel       from './pages/AdminPanel'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
+import ProtectedRoute from './components/ProtectedRoute'
 import SmartMatchPage   from './pages/SmartMatchPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ProfileCompletionModal from './components/auth/ProfileCompletionModal'
@@ -99,21 +100,21 @@ export default function App() {
       case 'companies':     return <CompanyDirectoryPage />
       case 'assistant':     return <AssistantPage />
       case 'news':          return <NewsPage />
-      case 'affiliates':    return <AffiliatesPage />
+      case 'affiliates':    return <ProtectedRoute><AffiliatesPage /></ProtectedRoute>
       case 'login':         return <LoginPage />
       case 'signup':        return <SignupPage />
       case 'saved-jobs':    return <SavedJobsPage />
-      case 'smartmatch':    return <SmartMatchPage />
+      case 'smartmatch':    return <ProtectedRoute><SmartMatchPage /></ProtectedRoute>
       case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback': return <AuthCallbackPage />
       case 'reset-password': return <ResetPasswordPage />
       case 'exams':          return <ExamDirectory />
-      case 'mock-tests':     return <MockTestList />
+      case 'mock-tests':     return <ProtectedRoute><MockTestList /></ProtectedRoute>
       default: 
         if (page.startsWith('jobs/')) return <JobDetailPage />
         if (page.startsWith('exams/')) return <ExamLandingPage />
-        if (page.startsWith('mock-tests/take/')) return <MockTestPlayer />
-        if (page.startsWith('mock-tests/result/')) return <MockTestResult />
+        if (page.startsWith('mock-tests/take/')) return <ProtectedRoute><MockTestPlayer /></ProtectedRoute>
+        if (page.startsWith('mock-tests/result/')) return <ProtectedRoute><MockTestResult /></ProtectedRoute>
         return <HomePage />
     }
   }

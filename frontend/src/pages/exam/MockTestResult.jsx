@@ -142,7 +142,7 @@ export default function MockTestResult() {
       </div>
 
       {/* METRICS DASHBOARD CARD */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Score */}
         <div className="bg-[var(--bg-card)] rounded-2xl p-6 border border-[var(--border)] text-center print:bg-slate-50">
           <Award className="w-8 h-8 text-blue-500 mx-auto mb-2" />

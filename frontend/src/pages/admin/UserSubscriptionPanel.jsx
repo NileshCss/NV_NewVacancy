@@ -77,7 +77,8 @@ const ActionBtn = ({ icon, label, onClick, color = '#60a5fa', danger = false }) 
       border: `1px solid ${danger ? 'rgba(239,68,68,.3)' : 'rgba(100,116,139,.25)'}`,
       color: danger ? '#ef4444' : color,
       fontSize: '12px', fontWeight: 600, transition: 'all 0.2s',
-      whiteSpace: 'nowrap',
+      whiteSpace: 'normal',
+      textAlign: 'left',
     }}
   >
     {icon} {label}
@@ -318,7 +319,7 @@ export default function UserSubscriptionPanel({ userId, onClose }) {
 
                 {/* Extend Form */}
                 {activeAction === 'extend' && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>Days to Add</label>
                       <input type="number" min="1" max="3650" value={extendDays} onChange={e => setExtendDays(e.target.value)}
@@ -335,7 +336,7 @@ export default function UserSubscriptionPanel({ userId, onClose }) {
 
                 {/* Custom Expiry Form */}
                 {activeAction === 'custom_expiry' && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>New Expiry Date</label>
                       <input type="date" value={customExpiry} onChange={e => setCustomExpiry(e.target.value)}

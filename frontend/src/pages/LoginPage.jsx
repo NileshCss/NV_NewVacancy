@@ -58,7 +58,13 @@ export default function LoginPage() {
     if (!user) return                            // not logged in
     if (user && profile === null) return         // user loaded but profile still fetching
     // profile is now confirmed (object or undefined if fetch failed)
-    navigate(isAdmin ? 'admin' : 'home')
+    const redirectTo = sessionStorage.getItem('redirect_after_login')
+    if (redirectTo) {
+      sessionStorage.removeItem('redirect_after_login')
+      navigate(redirectTo)
+    } else {
+      navigate(isAdmin ? 'admin' : 'home')
+    }
   }, [initialized, loading, user, profile, isAdmin, navigate])
 
   // ── Field helpers ─────────────────────────────────────────────────────────
@@ -136,7 +142,13 @@ export default function LoginPage() {
   const handleOTPSuccess = () => {
     setShowOTPModal(false)
     toast('Email verified! You are now signed in.', 'success')
-    navigate('home')
+    const redirectTo = sessionStorage.getItem('redirect_after_login')
+    if (redirectTo) {
+      sessionStorage.removeItem('redirect_after_login')
+      navigate(redirectTo)
+    } else {
+      navigate('home')
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
