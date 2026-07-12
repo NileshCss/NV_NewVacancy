@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { id: 'news',         label: 'News',         badge: null  },
   { id: 'affiliates',   label: '🎁 Offers',    badge: 'NEW' },
   { id: 'smartmatch',   label: '🧠 SmartMatch', badge: 'FREE' },
+  { id: 'mock-tests',   label: '📝 Mock Tests', badge: 'FREE' },
 ]
 
 export default function Navbar() {

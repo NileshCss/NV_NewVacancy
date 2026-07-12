@@ -24,6 +24,9 @@ import AssistantPage      from './pages/AssistantPage'
 import JobDetailPage      from './pages/JobDetailPage'
 import ExamDirectory      from './pages/exam/ExamDirectory'
 import ExamLandingPage    from './pages/exam/ExamLandingPage'
+import MockTestList       from './pages/exam/MockTestList'
+import MockTestPlayer     from './pages/exam/MockTestPlayer'
+import MockTestResult     from './pages/exam/MockTestResult'
 
 
 // Pages that don't show the Footer
@@ -105,9 +108,12 @@ export default function App() {
       case 'auth/callback': return <AuthCallbackPage />
       case 'reset-password': return <ResetPasswordPage />
       case 'exams':          return <ExamDirectory />
+      case 'mock-tests':     return <MockTestList />
       default: 
         if (page.startsWith('jobs/')) return <JobDetailPage />
         if (page.startsWith('exams/')) return <ExamLandingPage />
+        if (page.startsWith('mock-tests/take/')) return <MockTestPlayer />
+        if (page.startsWith('mock-tests/result/')) return <MockTestResult />
         return <HomePage />
     }
   }

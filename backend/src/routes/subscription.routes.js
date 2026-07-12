@@ -33,10 +33,20 @@ router.post('/usage/increment-mock-tests', attachUser, usageController.increment
 router.post('/sponsored/grant', requireAdmin, sponsoredAccessController.grantAccess);
 router.post('/sponsored/revoke/:id', requireAdmin, sponsoredAccessController.revokeAccess);
 
-// ── Student Subscription Override & Reset ────────────────────────────────────
-router.get('/admin/students', requireAdmin, subscriptionsController.listStudentSubscriptions);
-router.post('/admin/student/override', requireAdmin, subscriptionsController.updateStudentSubscription);
-router.post('/admin/student/reset-usage', requireAdmin, subscriptionsController.resetStudentUsage);
+// ── Student Subscription — current user ────────────────────────────────────────
 router.get('/student/current', attachUser, subscriptionsController.getCurrentSubscription);
+
+// ── Admin: List & Detail ──────────────────────────────────────────────────────
+router.get('/admin/students', requireAdmin, subscriptionsController.listStudentSubscriptions);
+router.get('/admin/student/:id', requireAdmin, subscriptionsController.getStudentSubscriptionDetail);
+
+// ── Admin: Override & Actions ────────────────────────────────────────────────
+router.post('/admin/student/override', requireAdmin, subscriptionsController.updateStudentSubscription);
+router.post('/admin/student/extend', requireAdmin, subscriptionsController.extendSubscription);
+router.post('/admin/student/lifetime', requireAdmin, subscriptionsController.grantLifetimeAccess);
+router.post('/admin/student/expiry', requireAdmin, subscriptionsController.setCustomExpiry);
+router.post('/admin/student/limit', requireAdmin, subscriptionsController.increaseLimit);
+router.post('/admin/student/toggle-premium', requireAdmin, subscriptionsController.togglePremium);
+router.post('/admin/student/reset-usage', requireAdmin, subscriptionsController.resetStudentUsage);
 
 module.exports = router;

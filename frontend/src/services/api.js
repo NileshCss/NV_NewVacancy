@@ -1035,4 +1035,159 @@ export const importQuestionsFile = async (file, examId) => {
   return json.data
 }
 
+// ── SUBSCRIPTION ADMIN API ─────────────────────────────────────────────────────
+
+export const fetchSubscriptionPlans = async () => {
+  const res = await adminFetch('/subscription/plans', { method: 'GET' })
+  return res?.data || []
+}
+
+export const fetchStudentSubscription = async (userId) => {
+  const res = await adminFetch(`/subscription/admin/student/${userId}`, { method: 'GET' })
+  return res?.data || null
+}
+
+export const adminChangePlan = async (studentId, planId, expiresAt, reason) =>
+  adminFetch('/subscription/admin/student/override', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, plan_id: planId, expires_at: expiresAt || null, reason }),
+  })
+
+export const adminExtendSubscription = async (studentId, days, reason) =>
+  adminFetch('/subscription/admin/student/extend', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, days, reason }),
+  })
+
+export const adminGrantLifetime = async (studentId, reason) =>
+  adminFetch('/subscription/admin/student/lifetime', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, reason }),
+  })
+
+export const adminSetExpiry = async (studentId, expiryDate, reason) =>
+  adminFetch('/subscription/admin/student/expiry', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, expiry_date: expiryDate, reason }),
+  })
+
+export const adminResetUsage = async (studentId, type) =>
+  adminFetch('/subscription/admin/student/reset-usage', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, type }),
+  })
+
+export const adminIncreaseLimit = async (studentId, type, newLimit, reason) =>
+  adminFetch('/subscription/admin/student/limit', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, type, new_limit: newLimit, reason }),
+  })
+
+export const adminGrantSponsored = async (studentId, planId, reason, validityDays) =>
+  adminFetch('/subscription/sponsored/grant', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, plan_id: planId, reason, validity_days: validityDays }),
+  })
+
+export const adminRevokeSponsored = async (sponsoredId, reason) =>
+  adminFetch(`/subscription/sponsored/revoke/${sponsoredId}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+
+export const adminTogglePremium = async (studentId, enable, reason) =>
+  adminFetch('/subscription/admin/student/toggle-premium', {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId, enable, reason }),
+  })
+
+// ── MOCK TESTS ADMIN API ───────────────────────────────────────────────────────
+
+export const fetchMockTests = async (params = {}) => {
+  const query = new URLSearchParams(params).toString()
+  const res = await adminFetch(`/exam/mock-tests?${query}`, { method: 'GET' })
+  return res?.data || []
+}
+
+export const fetchMockTest = async (id) => {
+  const res = await adminFetch(`/exam/mock-tests/${id}`, { method: 'GET' })
+  return res?.data || null
+}
+
+export const createMockTest = async (payload) =>
+  adminFetch('/exam/mock-tests', { method: 'POST', body: JSON.stringify(payload) })
+
+export const updateMockTest = async (id, payload) =>
+  adminFetch(`/exam/mock-tests/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+
+export const deleteMockTest = async (id) =>
+  adminFetch(`/exam/mock-tests/${id}`, { method: 'DELETE' })
+
+export const publishMockTest = async (id) =>
+  adminFetch(`/exam/mock-tests/${id}/publish`, { method: 'POST' })
+
+export const addMockTestQuestion = async (testId, questionId, displayOrder, marks) =>
+  adminFetch(`/exam/mock-tests/${testId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({ question_id: questionId, display_order: displayOrder, marks }),
+  })
+
+export const removeMockTestQuestion = async (testId, questionId) =>
+  adminFetch(`/exam/mock-tests/${testId}/questions/${questionId}`, { method: 'DELETE' })
+
+export const reorderMockTestQuestions = async (testId, items) =>
+  adminFetch(`/exam/mock-tests/${testId}/questions/reorder`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  })
+
+export const generateRandomMockTestQuestions = async (testId, rules) =>
+  adminFetch(`/exam/mock-tests/${testId}/random-generate`, {
+    method: 'POST',
+    body: JSON.stringify({ rules }),
+  })
+
+export const aiSuggestMockTestQuestions = async (testId, context) =>
+  adminFetch(`/exam/mock-tests/${testId}/ai-suggest`, {
+    method: 'POST',
+    body: JSON.stringify({ context }),
+  })
+
+// ── STUDENT MOCK TEST CLIENT ENDPOINTS ───────────────────────────────────────
+
+export const fetchStudentMockTests = async (params = {}) => {
+  const query = new URLSearchParams(params).toString()
+  const res = await adminFetch(`/exam/mock-tests/student/list?${query}`, { method: 'GET' })
+  return res?.data || []
+}
+
+export const fetchStudentMockTestDetail = async (id) => {
+  const res = await adminFetch(`/exam/mock-tests/student/${id}/detail`, { method: 'GET' })
+  return res?.data || null
+}
+
+export const startMockTestAttempt = async (id) =>
+  adminFetch(`/exam/mock-tests/student/${id}/start`, { method: 'POST' })
+
+export const saveMockTestAnswer = async (attemptId, payload) =>
+  adminFetch(`/exam/mock-tests/student/attempts/${attemptId}/save-answer`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const logMockTestTabSwitch = async (attemptId) =>
+  adminFetch(`/exam/mock-tests/student/attempts/${attemptId}/tab-switch`, { method: 'POST' })
+
+export const submitMockTest = async (attemptId) =>
+  adminFetch(`/exam/mock-tests/student/attempts/${attemptId}/submit`, { method: 'POST' })
+
+export const fetchMockTestResult = async (attemptId) => {
+  const res = await adminFetch(`/exam/mock-tests/student/attempts/${attemptId}/result`, { method: 'GET' })
+  return res?.data || null
+}
+
+export const fetchMockTestLeaderboard = async (id) => {
+  const res = await adminFetch(`/exam/mock-tests/student/${id}/leaderboard`, { method: 'GET' })
+  return res?.data || null
+}
 

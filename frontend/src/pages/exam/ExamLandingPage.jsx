@@ -103,7 +103,10 @@ export default function ExamLandingPage() {
             )}
             
             <div className="flex flex-wrap gap-4 mt-8">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg shadow-blue-500/30">
+              <button 
+                onClick={() => navigate('mock-tests')}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg shadow-blue-500/30"
+              >
                 Start Mock Test
               </button>
               <button className="bg-[var(--bg-surface)] hover:bg-[var(--border)] border border-[var(--border)] text-[var(--text-primary)] font-bold py-3 px-8 rounded-xl transition-colors">

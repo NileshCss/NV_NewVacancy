@@ -25,6 +25,8 @@ import SubjectsManager from './admin/exam/SubjectsManager'
 import ChaptersManager from './admin/exam/ChaptersManager'
 import TopicsManager from './admin/exam/TopicsManager'
 import QuestionBankManager from './admin/exam/QuestionBankManager'
+import MockTestsManager from './admin/exam/MockTestsManager'
+import UserSubscriptionPanel from './admin/UserSubscriptionPanel'
 
 // ── Defaults (news + affiliates) ──────────────────────────────────
 const NEWS_DEFAULTS = { title: '', summary: '', source_name: '', source_url: '', category: 'govt', is_featured: false, is_active: true }
@@ -52,6 +54,9 @@ export default function AdminPanel() {
 
   // ── Expiry check state (super admin only) ──────────────────────────
   const [checkingExpiry, setCheckingExpiry] = useState(false)
+
+  // ── Subscription panel ────────────────────────────────────────────
+  const [subscriptionUserId, setSubscriptionUserId] = useState(null)
 
   // ── News / Affiliates modal state ──────────────────────────────
   const [showNewsModal, setShowNewsModal] = useState(false)
@@ -237,6 +242,7 @@ export default function AdminPanel() {
     { id: 'chapters',     label: '🔖 Chapters' },
     { id: 'topics',       label: '📄 Topics' },
     { id: 'questions',    label: '❓ Questions' },
+    { id: 'mock_tests',   label: '📋 Mock Tests' },
     { id: 'live-updates', label: '📢 Live Updates' },
     { id: 'users',        label: '👥 Users' },
     { id: 'ai',           label: '✨ AI Assistant' },
@@ -437,6 +443,7 @@ export default function AdminPanel() {
         {section === 'chapters' && <ChaptersManager />}
         {section === 'topics' && <TopicsManager />}
         {section === 'questions' && <QuestionBankManager />}
+        {section === 'mock_tests' && <MockTestsManager />}
 
         {/* JOBS */}
         {section === 'jobs' && (
@@ -593,6 +600,18 @@ export default function AdminPanel() {
                                   : <button className="action-btn" style={{ background: 'rgba(234,179,8,.1)', color: '#eab308', border: '1px solid rgba(234,179,8,.25)' }} disabled={blockMut.isPending} onClick={() => confirmDel('Block this user?', () => blockMut.mutate({ id: u.id, isBlocked: true }))}>🚫 Block</button>
                               )}
 
+                              {/* Subscription panel — admin and super_admin */}
+                              {!isTargetSuper && (
+                                <button
+                                  className="action-btn"
+                                  style={{ background: 'rgba(168,85,247,.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,.25)', whiteSpace: 'nowrap' }}
+                                  onClick={() => setSubscriptionUserId(u.id)}
+                                  title="Manage subscription"
+                                >
+                                  🔑 Sub
+                                </button>
+                              )}
+
                               {/* Delete — strictly super_admin only */}
                               {!isSelf && isSuperAdmin && (
                                 <button className="action-btn action-del" disabled={delUserMut.isPending} onClick={() => confirmDel('⚠️ Permanently delete this user?', () => delUserMut.mutate(u.id))}>
@@ -616,6 +635,14 @@ export default function AdminPanel() {
         {section === 'ai'           && <AdminAIAssistant />}
         {section === 'scraper'      && <AdminScraper />}
         {section === 'whatsapp'     && <WhatsAppManager />}
+
+        {/* ── SUBSCRIPTION PANEL slide-over ────────────────────── */}
+        {subscriptionUserId && (
+          <UserSubscriptionPanel
+            userId={subscriptionUserId}
+            onClose={() => setSubscriptionUserId(null)}
+          />
+        )}
       </div>
 
       {/* ── JOB FORM (Modern Upgrade) ── */}
