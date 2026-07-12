@@ -148,37 +148,41 @@ export default function MockTestList() {
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
           Practice under real test conditions, log tab switches, review detailed performance breakdowns, and view explanations.
         </p>
-
-        <div className="mt-8 max-w-xl mx-auto relative px-4 sm:px-0">
-          <input 
-            type="text" 
-            placeholder="Search test names..." 
-            value={searchInput}
-            onChange={e => setSearchInput(e.target.value)}
-            className="w-full bg-[var(--bg-surface)] border-2 border-[var(--border)] rounded-full py-3.5 pl-12 pr-10 text-base text-[var(--text-primary)] focus:border-blue-500 focus:outline-none transition-colors"
-          />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={20} />
-          {searchInput && (
-            <button 
-              onClick={() => setSearchInput('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-full hover:bg-[var(--bg-surface)]"
-              aria-label="Clear search"
-            >
-              <X size={16} className="w-4 h-4" />
-            </button>
-          )}
-        </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] mb-8 flex flex-wrap gap-4 items-center">
+      <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] mb-8 flex flex-wrap gap-4 items-end shadow-sm animate-fade-in">
+        {/* Search Input */}
+        <div className="flex-1 min-w-[240px]">
+          <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1.5">Search</label>
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Search test names..." 
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl pl-9 pr-9 py-2 text-sm text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 shadow-sm"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            {searchInput && (
+              <button 
+                onClick={() => setSearchInput('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--text-primary)] transition-colors p-1 rounded-lg"
+                aria-label="Clear search"
+              >
+                <X size={14} className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {!examSlug && (
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1.5">Exam</label>
             <select
               value={selectedExamId}
               onChange={e => { setSelectedExamId(e.target.value); setSelectedSubjectId('') }}
-              className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none"
+              className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 shadow-sm cursor-pointer"
             >
               <option value="">All Exams</option>
               {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -191,7 +195,7 @@ export default function MockTestList() {
           <select
             value={selectedSubjectId}
             onChange={e => setSelectedSubjectId(e.target.value)}
-            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none"
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 shadow-sm cursor-pointer"
           >
             <option value="">All Subjects / Full Length</option>
             {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -203,7 +207,7 @@ export default function MockTestList() {
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none"
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 shadow-sm cursor-pointer"
           >
             <option value="">All Tests</option>
             <option value="not_attempted">Not Attempted</option>
@@ -247,10 +251,6 @@ export default function MockTestList() {
                     ) : isInProgress ? (
                       <span className="px-2.5 py-0.5 bg-yellow-50 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400 rounded-lg text-xs font-bold animate-pulse">
                         ⏳ In Progress
-                      </span>
-                    ) : test.status === 'draft' ? (
-                      <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 rounded-lg text-xs font-bold">
-                        ⚙️ Draft
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 bg-[var(--bg-surface)] text-[var(--text-muted)] rounded-lg text-xs font-medium">
