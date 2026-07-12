@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from '../../context/RouterContext'
 import { fetchStudentMockTests, fetchExams } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import { Loader2, Search, BookOpen, Clock, AlertCircle, Award, CheckCircle, ChevronRight, Play, RefreshCw, BarChart2 } from 'lucide-react'
+import { Loader2, Search, BookOpen, Clock, AlertCircle, Award, CheckCircle, ChevronRight, Play, RefreshCw, BarChart2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function MockTestList() {
@@ -25,6 +25,16 @@ export default function MockTestList() {
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+
+  // Debounce search input to prevent DB load spikes on every keystroke
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setSearch(searchInput)
+    }, 400)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchInput])
 
   useEffect(() => {
     async function loadInitialData() {
@@ -139,15 +149,24 @@ export default function MockTestList() {
           Practice under real test conditions, log tab switches, review detailed performance breakdowns, and view explanations.
         </p>
 
-        <div className="mt-8 max-w-xl mx-auto relative">
+        <div className="mt-8 max-w-xl mx-auto relative px-4 sm:px-0">
           <input 
             type="text" 
             placeholder="Search test names..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full bg-[var(--bg-surface)] border-2 border-[var(--border)] rounded-full py-3.5 pl-12 pr-6 text-base focus:border-blue-500 focus:outline-none transition-colors"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            className="w-full bg-[var(--bg-surface)] border-2 border-[var(--border)] rounded-full py-3.5 pl-12 pr-10 text-base text-[var(--text-primary)] focus:border-blue-500 focus:outline-none transition-colors"
           />
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={20} />
+          {searchInput && (
+            <button 
+              onClick={() => setSearchInput('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-full hover:bg-[var(--bg-surface)]"
+              aria-label="Clear search"
+            >
+              <X size={16} className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -228,6 +247,10 @@ export default function MockTestList() {
                     ) : isInProgress ? (
                       <span className="px-2.5 py-0.5 bg-yellow-50 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400 rounded-lg text-xs font-bold animate-pulse">
                         ⏳ In Progress
+                      </span>
+                    ) : test.status === 'draft' ? (
+                      <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 rounded-lg text-xs font-bold">
+                        ⚙️ Draft
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 bg-[var(--bg-surface)] text-[var(--text-muted)] rounded-lg text-xs font-medium">

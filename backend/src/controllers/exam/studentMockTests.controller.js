@@ -41,7 +41,7 @@ exports.listMockTests = async (req, res) => {
     const { exam_id, status: attemptStatusFilter, subject_id, search } = req.query;
     const client = getClientForRequest(req);
 
-    // 1. Fetch published mock tests
+    // 1. Fetch mock tests (admins can see drafts/expired tests too for preview/debug)
     let query = client
       .from('mock_tests')
       .select(`
@@ -49,8 +49,12 @@ exports.listMockTests = async (req, res) => {
         status, publish_date, expiry_date, question_selection_mode, instructions,
         exams:exam_id(id, name),
         subjects:subject_id(id, name)
-      `)
-      .eq('status', 'published');
+      `);
+
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.email === 'rajputnileshsingh3@gmail.com';
+    if (!isAdmin) {
+      query = query.eq('status', 'published');
+    }
 
     if (exam_id) query = query.eq('exam_id', exam_id);
     if (subject_id) query = query.eq('subject_id', subject_id);
@@ -114,19 +118,24 @@ exports.getMockTest = async (req, res) => {
     const studentId = req.user.id;
     const client = getClientForRequest(req);
 
-    const { data: test, error: testErr } = await client
+    let query = client
       .from('mock_tests')
       .select(`
         *,
         exams:exam_id(id, name),
         subjects:subject_id(id, name)
       `)
-      .eq('id', id)
-      .eq('status', 'published')
-      .single();
+      .eq('id', id);
+
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.email === 'rajputnileshsingh3@gmail.com';
+    if (!isAdmin) {
+      query = query.eq('status', 'published');
+    }
+
+    const { data: test, error: testErr } = await query.single();
 
     if (testErr) throw testErr;
-    if (!test) return res.status(404).json({ success: false, error: 'Published mock test not found' });
+    if (!test) return res.status(404).json({ success: false, error: 'Mock test not found' });
 
     // Fetch student's latest attempt for this test
     const { data: attempt, error: attemptErr } = await client
@@ -153,14 +162,19 @@ exports.startMockTestAttempt = async (req, res) => {
     const client = getClientForRequest(req);
 
     // 1. Fetch test
-    const { data: test, error: testErr } = await client
+    let query = client
       .from('mock_tests')
       .select('*')
-      .eq('id', mock_test_id)
-      .eq('status', 'published')
-      .single();
+      .eq('id', mock_test_id);
 
-    if (testErr || !test) return res.status(404).json({ success: false, error: 'Mock test not found or not published' });
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.email === 'rajputnileshsingh3@gmail.com';
+    if (!isAdmin) {
+      query = query.eq('status', 'published');
+    }
+
+    const { data: test, error: testErr } = await query.single();
+
+    if (testErr || !test) return res.status(404).json({ success: false, error: 'Mock test not found' });
 
     // 2. Check if user already has an in-progress attempt
     const { data: existingAttempts, error: extErr } = await client
