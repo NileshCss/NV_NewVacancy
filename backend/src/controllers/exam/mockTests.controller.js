@@ -243,10 +243,12 @@ exports.publishMockTest = async (req, res) => {
       errors.push('Total marks must be set and greater than 0.');
     }
 
+
+
     if (errors.length > 0) {
       return res.status(422).json({
         success: false,
-        error: 'Publish validation failed',
+        error: `Publish validation failed: ${errors.join('; ')}`,
         validation_errors: errors,
       });
     }

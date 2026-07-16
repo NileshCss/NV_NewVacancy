@@ -393,7 +393,13 @@ async function adminFetch(path, options = {}) {
     })
     clearTimeout(timeoutId)
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
+    if (!res.ok) {
+      const errObj = new Error(json.error || `Request failed (${res.status})`)
+      if (json.validation_errors) {
+        errObj.validation_errors = json.validation_errors
+      }
+      throw errObj
+    }
     return json
   } catch (err) {
     clearTimeout(timeoutId)
