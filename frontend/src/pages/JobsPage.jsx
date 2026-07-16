@@ -5,6 +5,8 @@ import SkeletonCard from '../components/SkeletonCard'
 import AffiliateSidebar from '../components/AffiliateSidebar'
 import JobApplyModal from '../components/jobs/JobApplyModal'
 import { fetchJobs } from '../services/api'
+import { Search } from 'lucide-react'
+
 
 export default function JobsPage({ category }) {
   const [search, setSearch] = useState('')
@@ -62,8 +64,8 @@ export default function JobsPage({ category }) {
             {/* Filter Row */}
             <div className="filter-row">
               <div className="filter-input" style={{ flex: 1, minWidth: '180px' }}>
-                <span className="filter-icon">🔍</span>
-                <input style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }} placeholder={`Search ${isGovt ? 'govt' : 'private'} jobs...`} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+                <input className="premium-search-input" placeholder={`Search ${isGovt ? 'govt' : 'private'} jobs...`} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
               </div>
               <button style={{ background: 'var(--bg-input)', color: showFilters ? 'var(--brand)' : 'var(--text-secondary)' }} className={`filter-btn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(!showFilters)}>
                 ⚙ Filters {(stateFilter || activeTag) && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand)', display: 'inline-block' }} />}

@@ -303,11 +303,11 @@ export default function QuestionBankManager() {
           <input
             type="text"
             placeholder="Search question text..."
-            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--text-primary)]"
+            className="premium-search-input"
             value={filters.search}
             onChange={e => setFilters({ ...filters, search: e.target.value })}
           />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
         </div>
 
         <div className="flex flex-wrap gap-3">

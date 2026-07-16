@@ -11,6 +11,8 @@ import {
   getAffiliateImageUrl,
   deleteAffiliateImage,
 } from '../../services/newsAffiliateService'
+import { Search } from 'lucide-react'
+
 
 const AFF_DEFAULTS = {
   name: '',
@@ -191,13 +193,16 @@ export default function AffiliatesManager() {
 
       {/* Filters */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          style={INPUT_STYLE}
-        />
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            placeholder="Search by name..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="premium-search-input"
+          />
+          <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={16} />
+        </div>
         <select
           value={filters.status}
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}

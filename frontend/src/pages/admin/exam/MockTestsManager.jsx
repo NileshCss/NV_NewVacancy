@@ -496,8 +496,8 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
             <div className="space-y-3">
               <div className="relative">
                 <input type="text" placeholder="Search approved questions..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2 text-sm text-[var(--text-primary)]" />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  className="premium-search-input" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
               </div>
 
               {searchLoading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-gray-400" size={16} /></div>}
@@ -721,8 +721,8 @@ export default function MockTestsManager() {
         <div className="flex-1 min-w-[200px] relative">
           <input type="text" placeholder="Search test name..." value={filters.search}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-            className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2 text-sm text-[var(--text-primary)]" />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            className="premium-search-input" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
         </div>
         <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 text-sm text-[var(--text-primary)]"
           value={filters.exam_id} onChange={e => setFilters(f => ({ ...f, exam_id: e.target.value }))}>
