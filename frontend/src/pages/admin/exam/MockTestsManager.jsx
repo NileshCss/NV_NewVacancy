@@ -154,7 +154,12 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
           expiry_date: data.expiry_date ? data.expiry_date.substring(0, 10) : '',
         })
         if (data.questions?.length > 0) {
-          setSelectedQuestions(data.questions)
+          setSelectedQuestions(
+            data.questions.map(q => ({
+              ...q,
+              question_id: q.question_id || q.questions?.id
+            }))
+          )
         }
         if (data.random_rules?.length > 0) {
           setRandomRules(data.random_rules)
