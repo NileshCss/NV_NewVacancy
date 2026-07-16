@@ -1141,6 +1141,13 @@ export const reorderMockTestQuestions = async (testId, items) =>
     body: JSON.stringify({ items }),
   })
 
+export const syncMockTestQuestions = async (testId, questions) =>
+  adminFetch(`/exam/mock-tests/${testId}/questions/batch`, {
+    method: 'POST',
+    body: JSON.stringify({ questions }),
+  })
+
+
 export const generateRandomMockTestQuestions = async (testId, rules) =>
   adminFetch(`/exam/mock-tests/${testId}/random-generate`, {
     method: 'POST',

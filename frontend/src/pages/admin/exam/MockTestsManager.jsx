@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   fetchMockTests, fetchMockTest, createMockTest, updateMockTest, deleteMockTest,
   publishMockTest, addMockTestQuestion, removeMockTestQuestion, reorderMockTestQuestions,
-  generateRandomMockTestQuestions, aiSuggestMockTestQuestions,
+  syncMockTestQuestions, generateRandomMockTestQuestions, aiSuggestMockTestQuestions,
   fetchExams, fetchSubjects, fetchChapters, fetchQuestions,
 } from '../../../services/api'
 import { Plus, Loader2, Edit2, Trash2, Send, Search, Sparkles, RefreshCw, GripVertical, X, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
@@ -295,29 +295,16 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
         toast.success('Test created! Now add questions.')
       }
 
-      // Sync questions to backend
-      if (savedId && selectedQuestions.length > 0) {
-        // Fetch current questions on server to diff
-        const currentTest = await fetchMockTest(savedId)
-        const serverQIds = new Set((currentTest?.questions || []).map(q => q.question_id))
-        const localQIds = new Set(selectedQuestions.map(q => q.question_id))
-
-        // Add new ones
-        for (const q of selectedQuestions) {
-          if (!serverQIds.has(q.question_id)) {
-            await addMockTestQuestion(savedId, q.question_id, q.display_order, q.marks || 1)
-          }
-        }
-        // Remove deleted ones
-        for (const q of currentTest?.questions || []) {
-          if (!localQIds.has(q.question_id)) {
-            await removeMockTestQuestion(savedId, q.question_id)
-          }
-        }
-        // Reorder
-        await reorderMockTestQuestions(savedId, selectedQuestions.map(q => ({
-          question_id: q.question_id, display_order: q.display_order
-        })))
+      // Sync questions to backend in a single batch
+      if (savedId) {
+        await syncMockTestQuestions(
+          savedId,
+          selectedQuestions.map(q => ({
+            question_id: q.question_id,
+            display_order: q.display_order,
+            marks: q.marks || 1
+          }))
+        )
       }
 
       onSaved()

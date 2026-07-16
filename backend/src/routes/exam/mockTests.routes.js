@@ -32,6 +32,7 @@ router.post('/:id/publish', requireAdmin, mockTestsController.publishMockTest);
 router.post('/:id/questions',              requireAdmin, mockTestsController.addQuestion);
 router.delete('/:id/questions/:qid',       requireAdmin, mockTestsController.removeQuestion);
 router.patch('/:id/questions/reorder',     requireAdmin, mockTestsController.reorderQuestions);
+router.post('/:id/questions/batch',        requireAdmin, mockTestsController.batchSyncQuestions);
 
 // ── Question Generation ────────────────────────────────────────────────────────
 router.post('/:id/random-generate', requireAdmin, mockTestsController.generateRandomQuestions);

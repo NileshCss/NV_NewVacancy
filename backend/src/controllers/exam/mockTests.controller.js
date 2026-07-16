@@ -377,6 +377,62 @@ exports.reorderQuestions = async (req, res) => {
   }
 };
 
+// ── POST /api/exam/mock-tests/:id/questions/batch — Sync all questions in one batch ─────────────────
+exports.batchSyncQuestions = async (req, res) => {
+  try {
+    const { id: mock_test_id } = req.params;
+    const { questions } = req.body; // [{ question_id, display_order, marks }]
+
+    if (!Array.isArray(questions)) {
+      return res.status(400).json({ success: false, error: 'questions must be an array' });
+    }
+
+    const client = getClientForRequest(req);
+
+    // 1. Fetch current questions
+    const { data: current, error: currentErr } = await client
+      .from('mock_test_questions')
+      .select('question_id')
+      .eq('mock_test_id', mock_test_id);
+
+    if (currentErr) throw currentErr;
+
+    const currentIds = new Set((current || []).map(q => q.question_id));
+    const newIds = new Set(questions.map(q => q.question_id));
+
+    // 2. Identify deletions
+    const toDelete = (current || []).filter(q => !newIds.has(q.question_id)).map(q => q.question_id);
+    if (toDelete.length > 0) {
+      const { error: delErr } = await client
+        .from('mock_test_questions')
+        .delete()
+        .eq('mock_test_id', mock_test_id)
+        .in('question_id', toDelete);
+      if (delErr) throw delErr;
+    }
+
+    // 3. Identify insertions / updates
+    const upsertRows = questions.map(q => ({
+      mock_test_id,
+      question_id: q.question_id,
+      display_order: q.display_order,
+      marks: q.marks || 1
+    }));
+
+    if (upsertRows.length > 0) {
+      const { error: upsertErr } = await client
+        .from('mock_test_questions')
+        .upsert(upsertRows, { onConflict: 'mock_test_id,question_id' });
+      if (upsertErr) throw upsertErr;
+    }
+
+    res.json({ success: true, message: 'Mock test questions synced successfully' });
+  } catch (err) {
+    logger.error('[MockTestsController] batchSyncQuestions error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // ── POST /api/exam/mock-tests/:id/random-generate ────────────────────────────
 // rules: [{ subject_id?, difficulty?, count }]
 exports.generateRandomQuestions = async (req, res) => {
