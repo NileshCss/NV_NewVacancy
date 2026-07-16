@@ -166,12 +166,18 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   }, [testId])
 
   // Manual question search
-  const handleSearch = async () => {
-    if (!searchTerm.trim() && !form.exam_id) return
+  const [manualSubjectId, setManualSubjectId] = useState('')
+
+  const handleSearch = async (subjId = manualSubjectId) => {
+    if (!searchTerm.trim() && !form.exam_id && !subjId) return
     setSearchLoading(true)
     try {
       const results = await fetchQuestions({
-        search: searchTerm, exam_id: form.exam_id, status: 'approved', limit: 30,
+        search: searchTerm,
+        exam_id: form.exam_id,
+        subject_id: subjId || undefined,
+        status: 'approved',
+        limit: 100, // fetch up to 100 questions for easier selection
       })
       setSearchResults(results || [])
     } catch {
@@ -182,9 +188,40 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => { if (searchTerm.length > 2 || form.exam_id) handleSearch() }, 400)
+    const t = setTimeout(() => {
+      handleSearch(manualSubjectId)
+    }, 400)
     return () => clearTimeout(t)
-  }, [searchTerm, form.exam_id])
+  }, [searchTerm, form.exam_id, manualSubjectId])
+
+  const addAllVisibleQuestions = () => {
+    const toAdd = searchResults.filter(q => !selectedQuestions.some(sq => sq.question_id === q.id))
+    if (toAdd.length === 0) {
+      toast.error('All visible questions are already added')
+      return
+    }
+    
+    const totalNewCount = selectedQuestions.length + toAdd.length
+    const targetCount = parseInt(form.total_questions) || 0
+    if (targetCount > 0 && totalNewCount > targetCount) {
+      const confirmAdd = window.confirm(
+        `Adding all ${toAdd.length} questions will exceed the test target of ${targetCount} questions (current: ${selectedQuestions.length}, new total: ${totalNewCount}).\n\nDo you want to proceed?`
+      )
+      if (!confirmAdd) return
+    }
+
+    setSelectedQuestions(prev => [
+      ...prev,
+      ...toAdd.map((q, index) => ({
+        question_id: q.id,
+        display_order: prev.length + index,
+        marks: q.marks || 1,
+        questions: q
+      }))
+    ])
+    toast.success(`Successfully added ${toAdd.length} questions!`)
+  }
+
 
   const addQuestion = (q) => {
     if (selectedQuestions.some(sq => sq.question_id === q.id)) {
@@ -481,11 +518,37 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
           {/* Manual Tab */}
           {selectionTab === 'manual' && (
             <div className="space-y-3">
-              <div className="relative">
-                <input type="text" placeholder="Search approved questions..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="premium-search-input" />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', alignItems: 'center' }}>
+                <div className="relative">
+                  <input type="text" placeholder="Search approved questions..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                    className="premium-search-input" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+                </div>
+                <select
+                  value={manualSubjectId}
+                  onChange={e => setManualSubjectId(e.target.value)}
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[var(--text-primary)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 cursor-pointer"
+                >
+                  <option value="">All Subjects / Full Length</option>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
+
+              {/* Bulk selection action bar */}
+              {!searchLoading && searchResults.length > 0 && (
+                <div className="flex justify-between items-center bg-[var(--bg-surface)]/60 border border-[var(--border)] rounded-xl p-2 px-3">
+                  <span className="text-xs text-[var(--text-secondary)] font-medium">
+                    Found {searchResults.length} questions
+                  </span>
+                  <button
+                    onClick={addAllVisibleQuestions}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                  >
+                    Add All Visible Questions
+                  </button>
+                </div>
+              )}
+
 
               {searchLoading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-gray-400" size={16} /></div>}
               {!searchLoading && searchResults.length > 0 && (
