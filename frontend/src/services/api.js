@@ -372,14 +372,14 @@ export const fetchUsers = async () => {
 }
 
 
-/** Helper: get current session token + api base with 3-second timeout */
+/** Helper: get current session token + api base with 15-second timeout */
 async function adminFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   const apiBase = getApiBase()
   
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 3000)
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
   
   try {
     const res = await fetch(`${apiBase}${path}`, {
