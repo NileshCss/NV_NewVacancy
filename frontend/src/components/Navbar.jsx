@@ -78,20 +78,21 @@ export default function Navbar() {
 
           {/* ── Desktop Nav Links ─────────────────────── */}
           <div className="nav-links">
-            {NAV_LINKS.map(link => (
-              <div
-                key={link.id}
-                className={`nav-link ${
-                  page === link.id ? 'active' : ''
-                }`}
-                onClick={() => goTo(link.id)}
-              >
-                {link.label}
-                {link.badge && (
-                  <span className="nav-badge">{link.badge}</span>
-                )}
-              </div>
-            ))}
+            {NAV_LINKS.map(link => {
+              const isActive = page === link.id || page.startsWith(link.id + '/')
+              return (
+                <div
+                  key={link.id}
+                  className={`nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => goTo(link.id)}
+                >
+                  {link.label}
+                  {link.badge && (
+                    <span className="nav-badge">{link.badge}</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {/* ── Right Side ───────────────────────────── */}
@@ -278,17 +279,18 @@ export default function Navbar() {
 
         {/* ── Mobile Menu ────────────────────────────── */}
         <div className={`mobile-menu ${mobileOpen ? 'open' : ''}`}>
-          {NAV_LINKS.map(link => (
-            <div
-              key={link.id}
-              className={`nav-link ${
-                page === link.id ? 'active' : ''
-              }`}
-              onClick={() => goTo(link.id)}
-            >
-              {link.label}
-            </div>
-          ))}
+          {NAV_LINKS.map(link => {
+            const isActive = page === link.id || page.startsWith(link.id + '/')
+            return (
+              <div
+                key={link.id}
+                className={`nav-link ${isActive ? 'active' : ''}`}
+                onClick={() => goTo(link.id)}
+              >
+                {link.label}
+              </div>
+            )
+          })}
 
           {isAdmin && (
             <div

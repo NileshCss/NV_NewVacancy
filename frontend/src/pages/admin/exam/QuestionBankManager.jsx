@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { fetchQuestions, fetchExams, fetchSubjects, fetchTopics, createQuestion, updateQuestion, updateQuestionStatus, deleteQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
-import { Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet, Filter, Search, ChevronRight, Upload, File, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react'
+import { Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet, Filter, Search, ChevronRight, Upload, File, CheckCircle2, AlertTriangle, AlertCircle, CheckCheck } from 'lucide-react'
 import QuestionEditor from './QuestionEditor'
 import toast from 'react-hot-toast'
 
@@ -115,6 +115,44 @@ export default function QuestionBankManager() {
     }
   }
 
+  // Approve all non-approved questions currently visible
+  const [isApprovingAll, setIsApprovingAll] = useState(false)
+
+  const handleApproveAll = async () => {
+    const toApprove = questions.filter(q => q.status !== 'approved')
+    if (toApprove.length === 0) return toast('All visible questions are already approved!')
+
+    const confirmed = window.confirm(
+      `Approve all ${toApprove.length} question${toApprove.length !== 1 ? 's' : ''} in the current view?\n\nThis will mark them as approved and make them available for mock tests.`
+    )
+    if (!confirmed) return
+
+    setIsApprovingAll(true)
+    const loadingToast = toast.loading(`Approving ${toApprove.length} questions...`)
+    let successCount = 0
+    let failCount = 0
+
+    for (const q of toApprove) {
+      try {
+        await updateQuestionStatus(q.id, 'approved')
+        successCount++
+      } catch {
+        failCount++
+      }
+    }
+
+    toast.dismiss(loadingToast)
+    setIsApprovingAll(false)
+
+    if (failCount === 0) {
+      toast.success(`✅ All ${successCount} questions approved successfully!`)
+    } else {
+      toast.error(`${successCount} approved, ${failCount} failed. Check console.`)
+    }
+
+    loadQuestions()
+  }
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0])
@@ -216,12 +254,28 @@ export default function QuestionBankManager() {
   return (
     <div className="space-y-6">
       {/* Top Banner & Main Actions */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
         <div>
           <h2 className="text-xl font-bold text-[var(--text-primary)]">Question Bank</h2>
           <p className="text-sm text-[var(--text-muted)]">Manage questions, approve drafts, import bulk data or use AI parsing.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+
+          {/* Approve All — only shown when there are non-approved questions visible */}
+          {!loading && questions.filter(q => q.status !== 'approved').length > 0 && (
+            <button
+              onClick={handleApproveAll}
+              disabled={isApprovingAll}
+              title={`Approve all ${questions.filter(q => q.status !== 'approved').length} visible non-approved questions`}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg transition font-semibold shadow-sm"
+            >
+              {isApprovingAll
+                ? <><Loader2 size={16} className="animate-spin" /> Approving...</>
+                : <><CheckCheck size={16} /> Approve All ({questions.filter(q => q.status !== 'approved').length})</>
+              }
+            </button>
+          )}
+
           <button onClick={() => setIsAiModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
             <Sparkles size={18} /> AI Extract
           </button>
