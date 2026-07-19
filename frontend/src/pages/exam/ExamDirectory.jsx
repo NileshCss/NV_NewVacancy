@@ -42,7 +42,7 @@ export default function ExamDirectory() {
             onChange={e => setSearch(e.target.value)}
             className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-full py-3.5 pl-12 pr-6 text-base text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition-all duration-200 shadow-sm"
           />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={20} />
+          <Search className="absolute left-4 top-[31%] -translate-y-1/2 text-[var(--text-muted)]" size={20} />
         </div>
       </div>
 

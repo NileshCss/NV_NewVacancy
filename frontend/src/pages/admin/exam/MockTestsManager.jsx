@@ -527,7 +527,7 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
                 <div className="relative">
                   <input type="text" placeholder="Search approved questions..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                     className="premium-search-input" />
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+                  <Search className="absolute left-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)]" size={16} />
                 </div>
                 <select
                   value={manualSubjectId}
@@ -777,7 +777,7 @@ export default function MockTestsManager() {
           <input type="text" placeholder="Search test name..." value={filters.search}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
             className="premium-search-input" />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+          <Search className="absolute left-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)]" size={16} />
         </div>
         <select className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-2 text-sm text-[var(--text-primary)]"
           value={filters.exam_id} onChange={e => setFilters(f => ({ ...f, exam_id: e.target.value }))}>

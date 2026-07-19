@@ -64,7 +64,7 @@ export default function JobsPage({ category }) {
             {/* Filter Row */}
             <div className="filter-row">
               <div className="filter-input" style={{ flex: 1, minWidth: '180px' }}>
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+                <Search className="absolute left-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)]" size={16} />
                 <input className="premium-search-input" placeholder={`Search ${isGovt ? 'govt' : 'private'} jobs...`} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
               </div>
               <button style={{ background: 'var(--bg-input)', color: showFilters ? 'var(--brand)' : 'var(--text-secondary)' }} className={`filter-btn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(!showFilters)}>

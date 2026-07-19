@@ -307,7 +307,7 @@ export default function QuestionBankManager() {
             value={filters.search}
             onChange={e => setFilters({ ...filters, search: e.target.value })}
           />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
+          <Search className="absolute left-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)]" size={18} />
         </div>
 
         <div className="flex flex-wrap gap-3">
