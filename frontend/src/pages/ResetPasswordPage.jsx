@@ -61,6 +61,19 @@ export default function ResetPasswordPage() {
       return
     }
 
+    // ── Check for OTP expired / Auth errors in URL immediately ────────────────
+    const params = new URLSearchParams(window.location.search)
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, '?'))
+    
+    if (params.get('error_code') === 'otp_expired' || hash.get('error_code') === 'otp_expired') {
+      resolve('expired', 'This reset link has expired. Please request a new one.')
+      return
+    }
+    if (params.get('error') || hash.get('error')) {
+      resolve('expired', params.get('error_description') || hash.get('error_description') || 'Invalid or expired reset link.')
+      return
+    }
+
     // ── Step 1: Handle PKCE code in URL query string ──────────────────────
     // With flowType:'pkce', Supabase sends the reset link as:
     //   https://site.com/auth/reset-password?code=XXXX

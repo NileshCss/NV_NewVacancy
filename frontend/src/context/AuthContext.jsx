@@ -361,7 +361,7 @@ export function AuthProvider({ children }) {
       // Point directly at the dedicated reset-password route so the
       // recovery token is handled by ResetPasswordPage without any
       // intermediate redirect through /auth/callback.
-      { redirectTo: `${window.location.origin}/auth/reset-password` }
+      { redirectTo: 'https://newvacancy.live/auth/reset-password' }
     )
     if (error) throw error
   }
