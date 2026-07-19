@@ -78,7 +78,6 @@ export default function ResetPasswordPage() {
     // With flowType:'pkce', Supabase sends the reset link as:
     //   https://site.com/auth/reset-password?code=XXXX
     // Supabase-js does NOT auto-exchange PKCE codes — we must do it explicitly.
-    const params = new URLSearchParams(window.location.search)
     const code   = params.get('code')
 
     if (code) {
