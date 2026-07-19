@@ -61,7 +61,7 @@ export default function App() {
     const isRecovery    = hash.includes('type=recovery') || params.get('type') === 'recovery'
 
     // Direct reset-password landing (new flow: Supabase redirects to /auth/reset-password)
-    if (path === '/auth/reset-password') {
+    if (page === 'auth/reset-password') {
       // RouterContext already resolved this from the URL — no action needed.
       // The page state is already 'auth/reset-password'. Just return.
       return
@@ -76,7 +76,7 @@ export default function App() {
     if (path === '/auth/callback' || hasOAuthCode || hasHashToken) {
       navigate('auth/callback')
     }
-  }, [navigate])
+  }, [navigate, page])
 
   // Show loading screen until auth is initialized
   if (!initialized || loading) {
