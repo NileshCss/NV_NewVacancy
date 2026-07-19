@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useRouter } from '../context/RouterContext'
+import { useAuth } from '../context/AuthContext'
 
 export default function ResetPasswordPage() {
   const { navigate } = useRouter()
@@ -14,37 +15,32 @@ export default function ResetPasswordPage() {
   const [showPw,      setShowPw]      = useState(false)
 
   const [sessionError, setSessionError] = useState('')
+  const { isRecoverySession } = useAuth()
 
-  // Wait for Supabase to process the recovery token from the URL hash/code
+  // sessionReady is driven by the global isRecoverySession flag in AuthContext.
+  // That flag is set when Supabase fires PASSWORD_RECOVERY — the most reliable
+  // signal that the recovery token has been validated and the session is active.
+  // We also keep a local getSession() fallback for cases where the event already
+  // fired before this component mounted (e.g. very fast token exchange).
   useEffect(() => {
-    let settled = false
-
-    const settle = (ready) => {
-      if (settled) return
-      settled = true
-      if (ready) {
-        setSessionReady(true)
-      } else {
-        setSessionError('This reset link has expired or has already been used. Please request a new one.')
-      }
+    if (isRecoverySession) {
+      setSessionReady(true)
+      return
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-        if (session) settle(true)
-      }
-    })
-
-    // Also check if session already exists (token already processed by AuthCallbackPage)
+    // Fallback: if the page mounts after the event already fired, getSession()
+    // should still return the active recovery session.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) settle(true)
+      if (session) setSessionReady(true)
     })
 
-    // Timeout: if no session arrives in 10 s, show expired-link error
-    const timer = setTimeout(() => settle(false), 10000)
+    // Final timeout: if no session in 12s, the link was expired/already-used.
+    const timer = setTimeout(() => {
+      setSessionError('This reset link has expired or has already been used. Please request a new one.')
+    }, 12000)
 
-    return () => { subscription.unsubscribe(); clearTimeout(timer) }
-  }, [])
+    return () => clearTimeout(timer)
+  }, [isRecoverySession])
 
 
   const validate = () => {
@@ -65,7 +61,9 @@ export default function ResetPasswordPage() {
       const { error: updateErr } = await supabase.auth.updateUser({ password })
       if (updateErr) throw updateErr
       setSuccess(true)
-      // Sign out so they log in fresh with new password
+      // Store success message so LoginPage can display it
+      sessionStorage.setItem('pw_reset_success', '1')
+      // Sign out to end the recovery session — user must log in with new password
       await supabase.auth.signOut()
       setTimeout(() => navigate('login'), 2500)
     } catch (err) {

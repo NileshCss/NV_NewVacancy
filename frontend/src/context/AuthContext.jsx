@@ -50,6 +50,10 @@ export function AuthProvider({ children }) {
   const [savedJobs,   setSavedJobs]   = useState([])
   const [showProfileCompletion, setShowProfileCompletion] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  // Recovery session: set when Supabase fires PASSWORD_RECOVERY.
+  // While true, the user object is set (needed to call updateUser) but
+  // the app must NOT treat this as a normal login — no redirects to home/admin.
+  const [isRecoverySession, setIsRecoverySession] = useState(false)
   const mountedRef = useRef(true)
 
   const fetchProfile = useCallback(async (userId) => {
@@ -161,6 +165,22 @@ export function AuthProvider({ children }) {
         if (!mountedRef.current) return
 
         if (session?.user) {
+          // Check if this might be a recovery session (page loaded from a
+          // reset-password link). The onAuthStateChange listener will handle
+          // it properly with the PASSWORD_RECOVERY event — don't pre-emptively
+          // treat it as a normal login during init.
+          const params = new URLSearchParams(window.location.search)
+          const hash   = window.location.hash
+          const mightBeRecovery =
+            hash.includes('type=recovery') ||
+            params.get('type') === 'recovery'
+
+          if (mightBeRecovery) {
+            // Let the onAuthStateChange PASSWORD_RECOVERY event handle this.
+            // Just mark initialized without setting user as a normal session.
+            return
+          }
+
           setUser(session.user)
 
           const cached = cache.get()
@@ -198,7 +218,21 @@ export function AuthProvider({ children }) {
       supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mountedRef.current) return
 
+        // ── PASSWORD_RECOVERY: user clicked a reset-password email link ──
+        // We set the user object so updateUser() will work, but mark this
+        // as a recovery session so the rest of the app doesn't treat it
+        // as a normal login and redirect to home/admin.
+        if (event === 'PASSWORD_RECOVERY' && session?.user) {
+          setUser(session.user)
+          setIsRecoverySession(true)
+          // Do NOT fetch profile or saved jobs — recovery session has no dashboard access
+          return
+        }
+
         if (event === 'SIGNED_IN' && session?.user) {
+          // If we're already in a recovery session, a SIGNED_IN event fires too
+          // (Supabase emits both). Ignore it — let PASSWORD_RECOVERY handling stand.
+          if (isRecoverySession) return
           setUser(session.user)
           // ALWAYS clear cache on sign-in so promoted admins get their
           // new role immediately instead of seeing a stale 'user' role.
@@ -207,7 +241,9 @@ export function AuthProvider({ children }) {
           if (mountedRef.current) { setProfile(p); fetchSavedJobs(session.user.id) }
         }
         if (event === 'SIGNED_OUT') {
-          setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false); setIsEditingProfile(false);
+          setUser(null); setProfile(null); setSavedJobs([]); cache.clear();
+          setShowProfileCompletion(false); setIsEditingProfile(false);
+          setIsRecoverySession(false)
         }
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user)
@@ -443,10 +479,10 @@ export function AuthProvider({ children }) {
     savedJobs, displayName, avatarLetter, showProfileCompletion,
     setShowProfileCompletion, markProfileComplete,
     isEditingProfile, setIsEditingProfile,
+    isRecoverySession,
     signIn, signUp, signInWithGoogle, signOut,
     updateProfile, refreshProfile, toggleSave, resendVerification, forgotPassword,
     recordReferral,
-
   }
 
   return (

@@ -29,7 +29,7 @@ function mapLoginError(msg = '') {
 }
 
 export default function LoginPage() {
-  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading, initialized, isAdmin } = useAuth()
+  const { signIn, signInWithGoogle, forgotPassword, user, profile, loading, initialized, isAdmin, isRecoverySession } = useAuth()
   const { navigate } = useRouter()
   const toast = useToast()
 
@@ -49,13 +49,24 @@ export default function LoginPage() {
   const configured      = isSupabaseConfigured()
   const normalizedEmail = useMemo(() => form.email.trim().toLowerCase(), [form.email])
 
+  // Show success banner when arriving from a completed password reset
+  const [passwordResetSuccess] = useState(() => {
+    const flag = sessionStorage.getItem('pw_reset_success')
+    if (flag) sessionStorage.removeItem('pw_reset_success')
+    return !!flag
+  })
+
+
   // Redirect already-logged-in users.
   // IMPORTANT: wait for `initialized` + `profile` to be set before deciding
   // the destination. Without this guard, profile.role is null when the effect
   // first fires (profile fetch is async), so admins were always sent to 'home'.
+  // Also: do NOT redirect during a password recovery session — that would
+  // skip the Set New Password screen and silently log the user in.
   useEffect(() => {
     if (!initialized || loading) return          // auth not ready yet
     if (!user) return                            // not logged in
+    if (isRecoverySession) return               // recovery session — must set new password first
     if (user && profile === null) return         // user loaded but profile still fetching
     // profile is now confirmed (object or undefined if fetch failed)
     const redirectTo = sessionStorage.getItem('redirect_after_login')
@@ -65,7 +76,7 @@ export default function LoginPage() {
     } else {
       navigate(isAdmin ? 'admin' : 'home')
     }
-  }, [initialized, loading, user, profile, isAdmin, navigate])
+  }, [initialized, loading, user, profile, isAdmin, isRecoverySession, navigate])
 
   // ── Field helpers ─────────────────────────────────────────────────────────
   const setField = (field) => (e) => {
@@ -164,8 +175,26 @@ export default function LoginPage() {
         </div>
 
         <div className="auth-box">
+          {/* Password reset success banner */}
+          {passwordResetSuccess && (
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: 10,
+              marginBottom: '1rem',
+              background: 'rgba(34,197,94,0.1)',
+              border: '1px solid rgba(34,197,94,0.3)',
+              color: '#4ade80',
+              fontSize: '0.85rem',
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+            }}>
+              ✅ Password reset successfully! Please log in with your new password.
+            </div>
+          )}
           <GoogleButton onClick={handleGoogle} disabled={submitting} />
           <AuthDivider />
+
 
           <form onSubmit={handleLogin} noValidate>
             <FormInput label="Email" error={errors.email}>

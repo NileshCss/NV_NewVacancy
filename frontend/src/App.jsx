@@ -35,7 +35,16 @@ const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'r
 
 export default function App() {
   const { page, navigate } = useRouter()
-  const { initialized, loading } = useAuth()
+  const { initialized, loading, isRecoverySession } = useAuth()
+
+  // Top-level recovery guard: whenever Supabase fires a PASSWORD_RECOVERY event,
+  // AuthContext sets isRecoverySession=true. Immediately navigate to the
+  // Set New Password screen regardless of what page the user landed on.
+  useEffect(() => {
+    if (isRecoverySession) {
+      navigate('reset-password')
+    }
+  }, [isRecoverySession, navigate])
 
   // Detect OAuth / magic-link / password-reset redirect on first load
   useEffect(() => {
