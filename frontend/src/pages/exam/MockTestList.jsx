@@ -200,11 +200,11 @@ export default function MockTestList() {
                 onChange={e => setSearchInput(e.target.value)}
                 className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl pl-9 pr-9 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+              <Search className="absolute left-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
               {searchInput && (
                 <button
                   onClick={() => setSearchInput('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-0.5 rounded"
+                  className="absolute right-3 top-[31%] -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-0.5 rounded"
                   aria-label="Clear search"
                 >
                   <X size={13} />
