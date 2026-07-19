@@ -44,6 +44,7 @@ export default function ResetPasswordPage() {
   const [sessionMsg,   setSessionMsg]   = useState('')
 
   const resolvedRef = useRef(false)  // prevent double-resolve
+  const exchangeAttemptedRef = useRef(false) // prevent strict mode double exchange
 
   // ── Resolve recovery session ─────────────────────────────────────────────
   useEffect(() => {
@@ -80,7 +81,8 @@ export default function ResetPasswordPage() {
     // Supabase-js does NOT auto-exchange PKCE codes — we must do it explicitly.
     const code   = params.get('code')
 
-    if (code) {
+    if (code && !exchangeAttemptedRef.current) {
+      exchangeAttemptedRef.current = true
       ;(async () => {
         try {
           const { data, error: exchErr } =
