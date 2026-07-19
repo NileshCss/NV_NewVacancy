@@ -40,11 +40,12 @@ export default function App() {
   // Top-level recovery guard: whenever Supabase fires a PASSWORD_RECOVERY event,
   // AuthContext sets isRecoverySession=true. Immediately navigate to the
   // Set New Password screen regardless of what page the user landed on.
+  // Guard: if already on the reset-password page, don't push another history entry.
   useEffect(() => {
-    if (isRecoverySession) {
-      navigate('reset-password')
+    if (isRecoverySession && page !== 'auth/reset-password' && page !== 'reset-password') {
+      navigate('auth/reset-password', { replace: true })
     }
-  }, [isRecoverySession, navigate])
+  }, [isRecoverySession, page, navigate])
 
   // Detect OAuth / magic-link / password-reset redirect on first load.
   // This runs once on mount to check if the URL contains auth params

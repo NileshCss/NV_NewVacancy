@@ -54,7 +54,13 @@ export function AuthProvider({ children }) {
   // While true, the user object is set (needed to call updateUser) but
   // the app must NOT treat this as a normal login — no redirects to home/admin.
   const [isRecoverySession, setIsRecoverySession] = useState(false)
-  const mountedRef = useRef(true)
+  // Ref counterpart: used inside onAuthStateChange closure to avoid reading
+  // stale state. React state updates are async (batched); if PASSWORD_RECOVERY
+  // and SIGNED_IN fire back-to-back, the SIGNED_IN handler would read
+  // isRecoverySession=false from the stale closure. The ref is updated
+  // synchronously so the SIGNED_IN guard always has the correct value.
+  const isRecoveryRef  = useRef(false)
+  const mountedRef     = useRef(true)
 
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) return null
@@ -169,11 +175,14 @@ export function AuthProvider({ children }) {
           // reset-password link). The onAuthStateChange listener will handle
           // it properly with the PASSWORD_RECOVERY event — don't pre-emptively
           // treat it as a normal login during init.
-          const params = new URLSearchParams(window.location.search)
-          const hash   = window.location.hash
+          const params    = new URLSearchParams(window.location.search)
+          const hash      = window.location.hash
+          const pathname  = window.location.pathname
           const mightBeRecovery =
-            hash.includes('type=recovery') ||
-            params.get('type') === 'recovery'
+            hash.includes('type=recovery')    ||
+            params.get('type') === 'recovery' ||
+            params.has('code')                ||  // PKCE recovery code in URL
+            pathname.includes('reset-password')   // landed directly on reset page
 
           if (mightBeRecovery) {
             // Let the onAuthStateChange PASSWORD_RECOVERY event handle this.
@@ -229,6 +238,7 @@ export function AuthProvider({ children }) {
         // as a recovery session so the rest of the app doesn't treat it
         // as a normal login and redirect to home/admin.
         if (event === 'PASSWORD_RECOVERY' && session?.user) {
+          isRecoveryRef.current = true          // sync ref update — no batching delay
           setUser(session.user)
           setIsRecoverySession(true)
           // Do NOT fetch profile or saved jobs — recovery session has no dashboard access
@@ -238,12 +248,12 @@ export function AuthProvider({ children }) {
         if (event === 'SIGNED_IN' && session?.user) {
           // If we're already in a recovery session, a SIGNED_IN event fires too
           // (Supabase emits both). Ignore it — let PASSWORD_RECOVERY handling stand.
-          if (isRecoverySession) return
+          // Use the ref (not state) to avoid the stale-closure bug: React state
+          // updates are async, so isRecoverySession would still be false here even
+          // if PASSWORD_RECOVERY already fired one microtask earlier.
+          if (isRecoveryRef.current) return
           setUser(session.user)
-          // ALWAYS clear cache on sign-in so promoted admins get their
-          // new role immediately instead of seeing a stale 'user' role.
           cache.clear()
-          // ── Parallel fetch: profile + saved jobs ────────────────────────
           const [p] = await Promise.all([
             fetchProfile(session.user.id),
             fetchSavedJobs(session.user.id),
@@ -251,6 +261,7 @@ export function AuthProvider({ children }) {
           if (mountedRef.current) setProfile(p)
         }
         if (event === 'SIGNED_OUT') {
+          isRecoveryRef.current = false
           setUser(null); setProfile(null); setSavedJobs([]); cache.clear();
           setShowProfileCompletion(false); setIsEditingProfile(false);
           setIsRecoverySession(false)

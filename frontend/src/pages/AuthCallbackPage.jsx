@@ -66,7 +66,7 @@ export default function AuthCallbackPage() {
             // send them to the reset-password screen instead.
             if (isRecovery) {
               done = true
-              navigate('reset-password')
+              navigate('auth/reset-password')
               return
             }
             await redirectUser(data.session)
@@ -76,12 +76,11 @@ export default function AuthCallbackPage() {
 
         // ── Strategy 2: Implicit hash token (older magic links, some email verifications) ──
         if (hash.includes('access_token=')) {
-          // Supabase JS automatically handles hash tokens — just get session
           const { data: { session } } = await supabase.auth.getSession()
           if (session) {
             if (isRecovery) {
               done = true
-              navigate('reset-password')
+              navigate('auth/reset-password')
               return
             }
             await redirectUser(session)
@@ -94,7 +93,7 @@ export default function AuthCallbackPage() {
         if (existing) {
           if (isRecovery) {
             done = true
-            navigate('reset-password')
+            navigate('auth/reset-password')
             return
           }
           await redirectUser(existing)
@@ -110,7 +109,7 @@ export default function AuthCallbackPage() {
             if (event === 'PASSWORD_RECOVERY') {
               done = true
               subscription.unsubscribe()
-              navigate('reset-password')
+              navigate('auth/reset-password')
               return
             }
             if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
@@ -119,7 +118,7 @@ export default function AuthCallbackPage() {
               if (isRecovery) {
                 done = true
                 subscription.unsubscribe()
-                navigate('reset-password')
+                navigate('auth/reset-password')
                 return
               }
               subscription.unsubscribe()
