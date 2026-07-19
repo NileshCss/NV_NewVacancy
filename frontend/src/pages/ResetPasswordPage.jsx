@@ -86,7 +86,7 @@ export default function ResetPasswordPage() {
       ;(async () => {
         try {
           const { data, error: exchErr } =
-            await supabase.auth.exchangeCodeForSession(window.location.href)
+            await supabase.auth.exchangeCodeForSession(code)
 
           if (exchErr) {
             console.error('[ResetPassword] PKCE exchange error:', exchErr.message)

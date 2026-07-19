@@ -59,7 +59,7 @@ export default function AuthCallbackPage() {
 
         // ── Strategy 1: PKCE code exchange (Google OAuth, email link in newer Supabase) ──
         if (params.has('code')) {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.search)
+          const { data, error } = await supabase.auth.exchangeCodeForSession(params.get('code'))
           if (error) throw error
           if (data?.session) {
             // If this is a password-recovery code, don't log the user in —
