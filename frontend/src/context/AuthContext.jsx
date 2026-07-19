@@ -86,6 +86,11 @@ export function AuthProvider({ children }) {
       if (!authUser) return null;
 
       const provider = authUser.app_metadata?.provider || 'email';
+
+      // Generate a unique 8-char referral code for this user
+      const referralCode = Math.random().toString(36).slice(2, 6).toUpperCase() +
+                           Math.random().toString(36).slice(2, 6).toUpperCase()
+
       const newProfile = {
         id: userId,
         email: authUser.email,
@@ -99,6 +104,7 @@ export function AuthProvider({ children }) {
         provider,
         profile_completed: provider !== 'google',
         is_active: true,
+        referral_code: referralCode,
       };
 
       const { data, error } = await supabase
@@ -281,6 +287,38 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }
 
+  // ── RECORD REFERRAL ───────────────────────────────────────────────
+  // Call this after a new user has signed up and has an active session.
+  // referralCode: the ?ref= value captured from the signup URL.
+  const recordReferral = async (referralCode) => {
+    if (!referralCode) return
+    try {
+      // Look up the referrer's user_id via the DB function (bypasses RLS)
+      const { data: referrerId, error: lookupErr } = await supabase
+        .rpc('get_referrer_by_code', { p_code: referralCode.trim().toUpperCase() })
+      if (lookupErr || !referrerId) {
+        console.warn('[Auth] Referral code not found:', referralCode)
+        return
+      }
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser || currentUser.id === referrerId) return // can't refer yourself
+
+      // Insert the referral record
+      const { error: insertErr } = await supabase.from('referrals').insert({
+        referrer_id: referrerId,
+        referred_id: currentUser.id,
+      })
+      if (insertErr) console.warn('[Auth] Failed to record referral:', insertErr.message)
+      else console.log('[Auth] Referral recorded successfully')
+
+      // Clear the stored code so it's not applied again
+      sessionStorage.removeItem('nv_referral_code')
+    } catch (err) {
+      console.error('[Auth] recordReferral error:', err.message)
+    }
+  }
+
 
   // ── UPDATE PROFILE ────────────────────────────────────────────────
   const updateProfile = async (updates) => {
@@ -407,6 +445,8 @@ export function AuthProvider({ children }) {
     isEditingProfile, setIsEditingProfile,
     signIn, signUp, signInWithGoogle, signOut,
     updateProfile, refreshProfile, toggleSave, resendVerification, forgotPassword,
+    recordReferral,
+
   }
 
   return (

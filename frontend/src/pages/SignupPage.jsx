@@ -14,9 +14,12 @@ import {
 import { isSupabaseConfigured } from '../services/supabase'
 
 export default function SignupPage() {
-  const { signUp, signInWithGoogle, resendVerification, user, loading, profile } = useAuth()
+  const { signUp, signInWithGoogle, resendVerification, user, loading, profile, recordReferral } = useAuth()
   const { navigate } = useRouter()
   const toast = useToast()
+
+  // Read referral code that RouterContext captured from the ?ref= URL param
+  const [referralCode] = useState(() => sessionStorage.getItem('nv_referral_code') || '')
 
   const [form, setFormState] = useState({ name: '', email: '', password: '', confirmPassword: '' })
   const [errors, setErrors]  = useState({})
@@ -91,6 +94,8 @@ export default function SignupPage() {
       }
 
       if (result?.session) {
+        // Immediate session (e.g. email confirmation disabled in Supabase settings)
+        await recordReferral(referralCode)
         toast('Account created successfully. Welcome! 🎉', 'success')
         navigate('home')
         return
@@ -151,8 +156,10 @@ export default function SignupPage() {
     }
   }
 
-  const handleOTPSuccess = (session) => {
+  const handleOTPSuccess = async (session) => {
     setShowOTPModal(false)
+    // Record referral BEFORE navigating — user now has an active session
+    await recordReferral(referralCode)
     toast('Email verified! Welcome to New_vacancy 🎉', 'success')
     const role = session?.user?.user_metadata?.role
       || session?.profile?.role
@@ -176,6 +183,22 @@ export default function SignupPage() {
           <div className="auth-logo-box">NV</div>
           <h1 style={{ color: 'var(--text-primary)' }}>Join New_vacancy</h1>
           <p style={{ color: 'var(--text-muted)' }}>Create your account and start tracking opportunities.</p>
+          {referralCode && (
+            <div style={{
+              marginTop: '0.75rem',
+              padding: '0.5rem 0.9rem',
+              background: 'rgba(249,115,22,0.1)',
+              border: '1px solid rgba(249,115,22,0.3)',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              color: 'var(--brand)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              🎁 You were invited with referral code <strong>{referralCode}</strong>
+            </div>
+          )}
         </div>
 
         <div className="auth-box">
