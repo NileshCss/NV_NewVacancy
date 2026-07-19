@@ -341,8 +341,23 @@ export function AuthProvider({ children }) {
   }
 
   const forgotPassword = async (email) => {
+    const cleanEmail = email.trim().toLowerCase()
+
+    // 1. Check if the user is registered by querying the public profiles table
+    const { data: profileCheck, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle()
+
+    if (profileErr) throw profileErr
+    if (!profileCheck) {
+      throw new Error('You are not registered with us. Please sign up to create an account.')
+    }
+
+    // 2. Proceed with password reset
     const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
+      cleanEmail,
       // Point directly at the dedicated reset-password route so the
       // recovery token is handled by ResetPasswordPage without any
       // intermediate redirect through /auth/callback.
