@@ -13,21 +13,39 @@ export default function ResetPasswordPage() {
   const [success,     setSuccess]     = useState(false)
   const [showPw,      setShowPw]      = useState(false)
 
+  const [sessionError, setSessionError] = useState('')
+
   // Wait for Supabase to process the recovery token from the URL hash/code
   useEffect(() => {
+    let settled = false
+
+    const settle = (ready) => {
+      if (settled) return
+      settled = true
+      if (ready) {
+        setSessionReady(true)
+      } else {
+        setSessionError('This reset link has expired or has already been used. Please request a new one.')
+      }
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-        if (session) setSessionReady(true)
+        if (session) settle(true)
       }
     })
 
-    // Also check if session already exists (token already processed)
+    // Also check if session already exists (token already processed by AuthCallbackPage)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true)
+      if (session) settle(true)
     })
 
-    return () => subscription.unsubscribe()
+    // Timeout: if no session arrives in 10 s, show expired-link error
+    const timer = setTimeout(() => settle(false), 10000)
+
+    return () => { subscription.unsubscribe(); clearTimeout(timer) }
   }, [])
+
 
   const validate = () => {
     if (!password) return 'New password is required'
@@ -109,7 +127,39 @@ export default function ResetPasswordPage() {
     </div>
   )
 
+  if (sessionError) return (
+    <div style={card}>
+      <div style={{ ...box, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏰</div>
+        <h2 style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '1.3rem', marginBottom: '0.75rem' }}>
+          Link Expired
+        </h2>
+        <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+          {sessionError}
+        </p>
+        <button
+          onClick={() => navigate('login')}
+          style={{
+            padding: '0.7rem 1.5rem',
+            background: 'var(--brand, #f97316)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '0.9rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 8px 24px rgba(249,115,22,0.3)',
+          }}
+        >
+          Back to Login
+        </button>
+        <style>{`@keyframes nv-spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  )
+
   if (!sessionReady) return (
+
     <div style={card}>
       <div style={{ textAlign: 'center' }}>
         <div style={{

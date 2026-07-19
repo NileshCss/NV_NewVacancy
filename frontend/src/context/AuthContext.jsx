@@ -276,10 +276,11 @@ export function AuthProvider({ children }) {
   const forgotPassword = async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
-      { redirectTo: `${window.location.origin}/auth/callback` }
+      { redirectTo: `${window.location.origin}/auth/callback?type=recovery` }
     )
     if (error) throw error
   }
+
 
   // ── UPDATE PROFILE ────────────────────────────────────────────────
   const updateProfile = async (updates) => {

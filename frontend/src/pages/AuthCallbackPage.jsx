@@ -42,23 +42,54 @@ export default function AuthCallbackPage() {
         const params = new URLSearchParams(window.location.search)
         const hash   = window.location.hash
 
+        // Detect password-recovery flow from URL before any strategy runs
+        const isRecovery =
+          hash.includes('type=recovery') ||
+          params.get('type') === 'recovery'
+
         // ── Strategy 1: PKCE code exchange (Google OAuth, email link in newer Supabase) ──
         if (params.has('code')) {
           const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.search)
           if (error) throw error
-          if (data?.session) { await redirectUser(data.session); return }
+          if (data?.session) {
+            // If this is a password-recovery code, don't log the user in —
+            // send them to the reset-password screen instead.
+            if (isRecovery) {
+              done = true
+              navigate('reset-password')
+              return
+            }
+            await redirectUser(data.session)
+            return
+          }
         }
 
         // ── Strategy 2: Implicit hash token (older magic links, some email verifications) ──
         if (hash.includes('access_token=')) {
           // Supabase JS automatically handles hash tokens — just get session
           const { data: { session } } = await supabase.auth.getSession()
-          if (session) { await redirectUser(session); return }
+          if (session) {
+            if (isRecovery) {
+              done = true
+              navigate('reset-password')
+              return
+            }
+            await redirectUser(session)
+            return
+          }
         }
 
         // ── Strategy 3: Check existing session (Supabase may have already set it) ──
         const { data: { session: existing } } = await supabase.auth.getSession()
-        if (existing) { await redirectUser(existing); return }
+        if (existing) {
+          if (isRecovery) {
+            done = true
+            navigate('reset-password')
+            return
+          }
+          await redirectUser(existing)
+          return
+        }
 
         // ── Strategy 4: Listen for auth state change (Supabase processes token async) ──
         setMsg('Completing verification...')
@@ -73,6 +104,14 @@ export default function AuthCallbackPage() {
               return
             }
             if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
+              // If the URL was a recovery link but Supabase fired SIGNED_IN instead
+              // of PASSWORD_RECOVERY, still route to reset-password.
+              if (isRecovery) {
+                done = true
+                subscription.unsubscribe()
+                navigate('reset-password')
+                return
+              }
               subscription.unsubscribe()
               await redirectUser(session)
             }
