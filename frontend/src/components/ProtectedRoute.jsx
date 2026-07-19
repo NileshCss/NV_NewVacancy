@@ -15,7 +15,9 @@ export default function ProtectedRoute({ children }) {
   useEffect(() => {
     if (!initialized || loading) return
     if (!user) {
-      sessionStorage.setItem('redirect_after_login', page)
+      // Save the page the user was trying to access so we can return them
+      // after login. Use the same key read by LoginPage and AuthCallbackPage.
+      sessionStorage.setItem('redirectAfterLogin', page)
       navigate('login')
     }
   }, [initialized, loading, user, page, navigate])

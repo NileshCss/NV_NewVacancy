@@ -31,7 +31,7 @@ import MockTestResult     from './pages/exam/MockTestResult'
 
 
 // Pages that don't show the Footer
-const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password'])
+const NO_FOOTER_PAGES = new Set(['login', 'signup', 'admin', 'auth/callback', 'reset-password', 'auth/reset-password'])
 
 export default function App() {
   const { page, navigate } = useRouter()
@@ -46,7 +46,9 @@ export default function App() {
     }
   }, [isRecoverySession, navigate])
 
-  // Detect OAuth / magic-link / password-reset redirect on first load
+  // Detect OAuth / magic-link / password-reset redirect on first load.
+  // This runs once on mount to check if the URL contains auth params
+  // (e.g. Google OAuth code, email verification hash, or recovery token).
   useEffect(() => {
     const path   = window.location.pathname
     const params = new URLSearchParams(window.location.search)
@@ -54,11 +56,18 @@ export default function App() {
 
     const hasOAuthCode  = params.has('code') && params.has('state')  // PKCE (Google OAuth)
     const hasHashToken  = hash.includes('access_token=')
-    // Password recovery links include type=recovery in the hash
+    // Password recovery links include type=recovery in the hash or search params
     const isRecovery    = hash.includes('type=recovery') || params.get('type') === 'recovery'
 
+    // Direct reset-password landing (new flow: Supabase redirects to /auth/reset-password)
+    if (path === '/auth/reset-password') {
+      // RouterContext already resolved this from the URL — no action needed.
+      // The page state is already 'auth/reset-password'. Just return.
+      return
+    }
+
     if (isRecovery) {
-      // Go straight to reset-password page — AuthCallbackPage will pick up the token
+      // Legacy recovery via /auth/callback — still handled for compatibility
       navigate('auth/callback')
       return
     }
@@ -116,7 +125,8 @@ export default function App() {
       case 'smartmatch':    return <ProtectedRoute><SmartMatchPage /></ProtectedRoute>
       case 'admin':         return <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute>
       case 'auth/callback': return <AuthCallbackPage />
-      case 'reset-password': return <ResetPasswordPage />
+      case 'reset-password':      return <ResetPasswordPage />
+      case 'auth/reset-password': return <ResetPasswordPage />  // direct Supabase redirect target
       case 'exams':          return <ExamDirectory />
       case 'mock-tests':     return <ProtectedRoute><MockTestList /></ProtectedRoute>
       default: 

@@ -69,12 +69,20 @@ export default function LoginPage() {
     if (isRecoverySession) return               // recovery session — must set new password first
     if (user && profile === null) return         // user loaded but profile still fetching
     // profile is now confirmed (object or undefined if fetch failed)
-    const redirectTo = sessionStorage.getItem('redirect_after_login')
+
+    // Admins always go to admin dashboard
+    if (isAdmin) {
+      navigate('admin')
+      return
+    }
+
+    // Return the user to where they were before being redirected to login
+    const redirectTo = sessionStorage.getItem('redirectAfterLogin')
     if (redirectTo) {
-      sessionStorage.removeItem('redirect_after_login')
+      sessionStorage.removeItem('redirectAfterLogin')
       navigate(redirectTo)
     } else {
-      navigate(isAdmin ? 'admin' : 'home')
+      navigate('home')
     }
   }, [initialized, loading, user, profile, isAdmin, isRecoverySession, navigate])
 
@@ -126,6 +134,8 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await signInWithGoogle()
+      // After Google OAuth, AuthCallbackPage handles the redirectAfterLogin key.
+      // We don't navigate here because Google redirects the entire browser window.
     } catch (err) {
       toast(err?.message || 'Google login failed.', 'error')
       setSubmitting(false)
@@ -153,12 +163,13 @@ export default function LoginPage() {
   const handleOTPSuccess = () => {
     setShowOTPModal(false)
     toast('Email verified! You are now signed in.', 'success')
-    const redirectTo = sessionStorage.getItem('redirect_after_login')
+    // Honor the same redirect logic as a normal login
+    const redirectTo = sessionStorage.getItem('redirectAfterLogin')
     if (redirectTo) {
-      sessionStorage.removeItem('redirect_after_login')
+      sessionStorage.removeItem('redirectAfterLogin')
       navigate(redirectTo)
     } else {
-      navigate('home')
+      navigate(isAdmin ? 'admin' : 'home')
     }
   }
 

@@ -36,9 +36,9 @@ export default function SignupPage() {
   // Redirect already-logged-in users
   useEffect(() => {
     if (!loading && user) {
-      const redirectTo = sessionStorage.getItem('redirect_after_login')
+      const redirectTo = sessionStorage.getItem('redirectAfterLogin')
       if (redirectTo) {
-        sessionStorage.removeItem('redirect_after_login')
+        sessionStorage.removeItem('redirectAfterLogin')
         navigate(redirectTo)
       } else {
         navigate(profile?.role === 'admin' ? 'admin' : 'home')
@@ -164,9 +164,9 @@ export default function SignupPage() {
     const role = session?.user?.user_metadata?.role
       || session?.profile?.role
       || null
-    const redirectTo = sessionStorage.getItem('redirect_after_login')
+    const redirectTo = sessionStorage.getItem('redirectAfterLogin')
     if (redirectTo) {
-      sessionStorage.removeItem('redirect_after_login')
+      sessionStorage.removeItem('redirectAfterLogin')
       navigate(redirectTo)
     } else {
       navigate(role === 'admin' ? 'admin' : 'home')

@@ -185,20 +185,26 @@ export function AuthProvider({ children }) {
 
           const cached = cache.get()
           if (!cached) {
-            const fresh = await fetchProfile(session.user.id)
+            // ── Parallel fetch: profile + saved jobs at the same time ──────
+            const [fresh] = await Promise.all([
+              fetchProfile(session.user.id),
+              fetchSavedJobs(session.user.id),
+            ])
             if (!mountedRef.current) return
             if (fresh?.is_blocked) { await signOutBlocked(); return }
             setProfile(fresh)
           } else {
             if (cached.is_blocked) { await signOutBlocked(); return }
-            // Background refresh — does not block UI
-            fetchProfile(session.user.id).then(fresh => {
+            // Background parallel refresh — does not block UI
+            Promise.all([
+              fetchProfile(session.user.id),
+              fetchSavedJobs(session.user.id),
+            ]).then(([fresh]) => {
               if (!mountedRef.current || !fresh) return
               if (fresh.is_blocked) { signOutBlocked(); return }
               setProfile(fresh)
             })
           }
-          fetchSavedJobs(session.user.id)
         } else {
           cache.clear()
           setUser(null)
@@ -237,8 +243,12 @@ export function AuthProvider({ children }) {
           // ALWAYS clear cache on sign-in so promoted admins get their
           // new role immediately instead of seeing a stale 'user' role.
           cache.clear()
-          const p = await fetchProfile(session.user.id)
-          if (mountedRef.current) { setProfile(p); fetchSavedJobs(session.user.id) }
+          // ── Parallel fetch: profile + saved jobs ────────────────────────
+          const [p] = await Promise.all([
+            fetchProfile(session.user.id),
+            fetchSavedJobs(session.user.id),
+          ])
+          if (mountedRef.current) setProfile(p)
         }
         if (event === 'SIGNED_OUT') {
           setUser(null); setProfile(null); setSavedJobs([]); cache.clear();
@@ -308,7 +318,11 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
-      setUser(null); setProfile(null); setSavedJobs([]); cache.clear(); setShowProfileCompletion(false); setIsEditingProfile(false);
+      // Clear all local state immediately so the UI feels instant
+      setUser(null); setProfile(null); setSavedJobs([]); cache.clear();
+      setShowProfileCompletion(false); setIsEditingProfile(false);
+      // Clear any saved post-login redirect so it doesn't leak into the next session
+      sessionStorage.removeItem('redirectAfterLogin')
       await supabase.auth.signOut()
     } catch (err) {
       console.error('[Auth] Sign out error:', err)
@@ -318,7 +332,10 @@ export function AuthProvider({ children }) {
   const forgotPassword = async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
-      { redirectTo: `${window.location.origin}/auth/callback?type=recovery` }
+      // Point directly at the dedicated reset-password route so the
+      // recovery token is handled by ResetPasswordPage without any
+      // intermediate redirect through /auth/callback.
+      { redirectTo: `${window.location.origin}/auth/reset-password` }
     )
     if (error) throw error
   }

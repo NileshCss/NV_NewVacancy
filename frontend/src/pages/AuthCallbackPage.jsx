@@ -28,9 +28,19 @@ export default function AuthCallbackPage() {
       setMsg(`Welcome, ${name}! 🎉`)
 
       setTimeout(() => {
+        // Admin always goes to admin dashboard, regardless of redirectAfterLogin
         if (prof?.role === 'admin' ||
+            prof?.role === 'super_admin' ||
             u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
           navigate('admin')
+          return
+        }
+
+        // Honor the page the user was trying to reach before being sent to login
+        const savedRedirect = sessionStorage.getItem('redirectAfterLogin')
+        if (savedRedirect) {
+          sessionStorage.removeItem('redirectAfterLogin')
+          navigate(savedRedirect)
         } else {
           navigate('home')
         }

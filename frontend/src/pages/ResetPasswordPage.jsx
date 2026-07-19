@@ -20,18 +20,45 @@ export default function ResetPasswordPage() {
   // sessionReady is driven by the global isRecoverySession flag in AuthContext.
   // That flag is set when Supabase fires PASSWORD_RECOVERY — the most reliable
   // signal that the recovery token has been validated and the session is active.
-  // We also keep a local getSession() fallback for cases where the event already
-  // fired before this component mounted (e.g. very fast token exchange).
+  //
+  // We also need to handle the case where Supabase redirected directly to
+  // /auth/reset-password with the token in the URL hash (new forgotPassword flow).
+  // In that case we trigger the session exchange ourselves by listening to
+  // onAuthStateChange, which Supabase-js processes automatically from the hash.
   useEffect(() => {
     if (isRecoverySession) {
       setSessionReady(true)
       return
     }
 
-    // Fallback: if the page mounts after the event already fired, getSession()
-    // should still return the active recovery session.
+    // Fallback 1: session may already be active if the component mounted after
+    // the PASSWORD_RECOVERY event fired (e.g. fast token exchange).
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true)
+    })
+
+    // Fallback 2: listen for the PASSWORD_RECOVERY event if it hasn't fired yet.
+    // This covers the direct /auth/reset-password landing where the hash token
+    // needs to be exchanged — Supabase-js does this automatically and fires
+    // PASSWORD_RECOVERY when done.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setSessionReady(true)
+        subscription.unsubscribe()
+      }
+      // Some Supabase versions fire SIGNED_IN for recovery too
+      if (event === 'SIGNED_IN' && session) {
+        const hash = window.location.hash
+        const params = new URLSearchParams(window.location.search)
+        const isRecoveryUrl =
+          hash.includes('type=recovery') ||
+          params.get('type') === 'recovery' ||
+          window.location.pathname.includes('reset-password')
+        if (isRecoveryUrl) {
+          setSessionReady(true)
+          subscription.unsubscribe()
+        }
+      }
     })
 
     // Final timeout: if no session in 12s, the link was expired/already-used.
@@ -39,7 +66,10 @@ export default function ResetPasswordPage() {
       setSessionError('This reset link has expired or has already been used. Please request a new one.')
     }, 12000)
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      subscription.unsubscribe()
+    }
   }, [isRecoverySession])
 
 
