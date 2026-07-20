@@ -27,7 +27,7 @@ function getStrength(pw) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ResetPasswordPage() {
-  const { navigate }         = useRouter()
+  const { navigate }          = useRouter()
   const { isRecoverySession } = useAuth()
 
   const [password,     setPassword]     = useState('')
@@ -37,16 +37,32 @@ export default function ResetPasswordPage() {
   const [error,        setError]        = useState('')
   const [success,      setSuccess]      = useState(false)
 
-  // 'pending'  — waiting for Supabase to validate the recovery token
-  // 'ready'    — session active, show the form
-  // 'expired'  — link expired / already used
+  // 'pending'  — waiting for Supabase PASSWORD_RECOVERY event
+  // 'ready'    — recovery session active, show the form
+  // 'expired'  — link expired / invalid / already used
   const [sessionState, setSessionState] = useState('pending')
   const [sessionMsg,   setSessionMsg]   = useState('')
 
-  const resolvedRef = useRef(false)  // prevent double-resolve
-  const exchangeAttemptedRef = useRef(false) // prevent strict mode double exchange
+  const resolvedRef = useRef(false) // ensure we only resolve once
 
-  // ── Resolve recovery session ─────────────────────────────────────────────
+  // ── Resolve recovery session ──────────────────────────────────────────────
+  //
+  // HOW THIS WORKS (PKCE flow):
+  //
+  // The Supabase client is created with detectSessionInUrl:true + flowType:'pkce'.
+  // When the user clicks the reset email link:
+  //   https://newvacancy.live/auth/reset-password?code=XXXX
+  //
+  // Supabase-js automatically detects the ?code= param and calls
+  // exchangeCodeForSession() internally during client initialisation.
+  // After a successful exchange, it fires onAuthStateChange('PASSWORD_RECOVERY').
+  //
+  // ⚠️  DO NOT call exchangeCodeForSession() manually here.
+  //     That would consume the one-time PKCE token a second time,
+  //     causing Supabase to return otp_expired — exactly the bug we had.
+  //
+  // The correct approach: just listen for the events Supabase fires.
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
 
     const resolve = (state, msg = '') => {
@@ -56,60 +72,37 @@ export default function ResetPasswordPage() {
       if (msg) setSessionMsg(msg)
     }
 
-    // Fast-path: AuthContext already fired PASSWORD_RECOVERY before we mounted.
+    // ── Fast path: AuthContext already captured PASSWORD_RECOVERY ─────────
+    // AuthContext's onAuthStateChange listener runs application-wide.
+    // If it already received PASSWORD_RECOVERY before this component mounted,
+    // isRecoverySession is already true — skip straight to the form.
     if (isRecoverySession) {
       resolve('ready')
       return
     }
 
-    // ── Check for OTP expired / Auth errors in URL immediately ────────────────
+    // ── Check for explicit error params in URL (Supabase sends these when ──
+    // the link is already expired/invalid before we even try to use it).
+    // Example: ?error=access_denied&error_code=otp_expired&error_description=...
     const params = new URLSearchParams(window.location.search)
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, '?'))
-    
-    if (params.get('error_code') === 'otp_expired' || hash.get('error_code') === 'otp_expired') {
-      resolve('expired', 'This reset link has expired. Please request a new one.')
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, '?'))
+
+    const urlError = params.get('error') || hashParams.get('error')
+    const urlErrorCode = params.get('error_code') || hashParams.get('error_code')
+    const urlErrorDesc = params.get('error_description') || hashParams.get('error_description')
+
+    if (urlError || urlErrorCode === 'otp_expired') {
+      const msg = urlErrorDesc
+        ? decodeURIComponent(urlErrorDesc.replace(/\+/g, ' '))
+        : 'This reset link has expired or has already been used.'
+      resolve('expired', msg)
       return
     }
-    if (params.get('error') || hash.get('error')) {
-      resolve('expired', params.get('error_description') || hash.get('error_description') || 'Invalid or expired reset link.')
-      return
-    }
 
-    // ── Step 1: Handle PKCE code in URL query string ──────────────────────
-    // With flowType:'pkce', Supabase sends the reset link as:
-    //   https://site.com/auth/reset-password?code=XXXX
-    // Supabase-js does NOT auto-exchange PKCE codes — we must do it explicitly.
-    const code   = params.get('code')
-
-    if (code && !exchangeAttemptedRef.current) {
-      exchangeAttemptedRef.current = true
-      ;(async () => {
-        try {
-          const { data, error: exchErr } =
-            await supabase.auth.exchangeCodeForSession(code)
-
-          if (exchErr) {
-            console.error('[ResetPassword] PKCE exchange error:', exchErr.message)
-            resolve('expired', 'This reset link has expired or has already been used. Please request a new one.')
-            return
-          }
-
-          // exchangeCodeForSession succeeded → onAuthStateChange will fire
-          // PASSWORD_RECOVERY or SIGNED_IN. We also receive the session directly.
-          if (data?.session) {
-            resolve('ready')
-          }
-          // If no session returned, let onAuthStateChange handle it below.
-        } catch (err) {
-          console.error('[ResetPassword] PKCE exchange failed:', err)
-          resolve('expired', 'Failed to verify reset link. Please request a new password reset.')
-        }
-      })()
-    }
-
-    // ── Step 2: Hash token (implicit flow) or already-exchanged session ───
-    // Supabase-js auto-processes hash tokens when detectSessionInUrl:true,
-    // then fires PASSWORD_RECOVERY. Listen for both events.
+    // ── Listen for Supabase auth events ──────────────────────────────────
+    // detectSessionInUrl:true causes the client to auto-exchange the ?code=
+    // param. After exchange it fires PASSWORD_RECOVERY (or SIGNED_IN for
+    // some Supabase versions). We listen here and resolve accordingly.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (resolvedRef.current) return
 
@@ -118,36 +111,37 @@ export default function ResetPasswordPage() {
         return
       }
 
-      // Some Supabase versions / configurations fire SIGNED_IN for recovery.
-      // Accept it only if we're on a reset-password URL (prevents false positives).
+      // Some Supabase JS versions fire SIGNED_IN instead of PASSWORD_RECOVERY
+      // for recovery links. Accept it only when on the reset page AND there's
+      // a recovery marker in the URL to avoid false positives from normal logins.
       if (event === 'SIGNED_IN' && session) {
-        const h = window.location.hash
-        const q = window.location.search
         const onResetPage = window.location.pathname.includes('reset-password')
-        const hasRecoveryMarker =
-          h.includes('type=recovery') ||
-          q.includes('type=recovery') ||
-          q.includes('code=')   // PKCE recovery code was in the URL
+        const hasCode = params.has('code')
+        const hasRecoveryHash =
+          window.location.hash.includes('type=recovery') ||
+          window.location.search.includes('type=recovery')
 
-        if (onResetPage && hasRecoveryMarker) {
+        if (onResetPage && (hasCode || hasRecoveryHash)) {
           resolve('ready')
         }
       }
     })
 
-    // ── Step 3: Fallback — session was already set before this component mounted
+    // ── Fallback: getSession() ─────────────────────────────────────────────
+    // If the exchange already completed before our listener was attached,
+    // getSession() will return the existing recovery session.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !resolvedRef.current) {
+      if (!resolvedRef.current && session) {
         resolve('ready')
       }
     })
 
-    // ── Step 4: Timeout guard — link expired or no token at all
+    // ── Timeout: if no event arrives within 12s, the link was bad ─────────
     const timer = setTimeout(() => {
       if (!resolvedRef.current) {
         resolve('expired', 'This reset link has expired or has already been used. Please request a new one.')
       }
-    }, 15000)
+    }, 12000)
 
     return () => {
       clearTimeout(timer)
@@ -155,14 +149,14 @@ export default function ResetPasswordPage() {
     }
   }, [isRecoverySession])
 
-  // ── Form handlers ────────────────────────────────────────────────────────
+  // ── Password update ───────────────────────────────────────────────────────
   const strength = getStrength(password)
 
   const validate = () => {
-    if (!password)            return 'New password is required.'
-    if (password.length < 8)  return 'Password must be at least 8 characters.'
-    if (strength.score < 2)   return 'Password is too weak. Add uppercase letters, numbers, or symbols.'
-    if (password !== confirm)  return 'Passwords do not match.'
+    if (!password)           return 'New password is required.'
+    if (password.length < 8) return 'Password must be at least 8 characters.'
+    if (strength.score < 2)  return 'Password is too weak. Add uppercase letters, numbers, or symbols.'
+    if (password !== confirm) return 'Passwords do not match.'
     return null
   }
 
@@ -179,16 +173,15 @@ export default function ResetPasswordPage() {
 
       setSuccess(true)
 
-      // ── Full cleanup ─────────────────────────────────────────────────
-      // Mark success for LoginPage to display the banner
+      // Mark success so LoginPage can show a banner
       sessionStorage.setItem('pw_reset_success', '1')
-      // Clear all auth caches so the old session is fully invalidated
+
+      // Clear caches and sign out all devices
       try { localStorage.removeItem('nv_auth') }    catch {}
       try { localStorage.removeItem('nv_profile') } catch {}
-      // Sign out all sessions (scope:'global' invalidates ALL devices)
       await supabase.auth.signOut({ scope: 'global' })
 
-      // Redirect to login after a short success animation
+      // Redirect to login
       setTimeout(() => navigate('login'), 2500)
 
     } catch (err) {
@@ -269,7 +262,7 @@ export default function ResetPasswordPage() {
       <style>{KF}</style>
       <div style={{ ...S.card, textAlign: 'center' }}>
         <div style={{ fontSize: '3.5rem', marginBottom: '1rem', animation: 'nv-pop 0.4s ease' }}>✅</div>
-        <h2 style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '1.4rem', marginBottom: '0.5rem', margin: '0 0 0.5rem' }}>
+        <h2 style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '1.4rem', margin: '0 0 0.5rem' }}>
           Password Updated!
         </h2>
         <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
@@ -286,7 +279,7 @@ export default function ResetPasswordPage() {
     </div>
   )
 
-  // ── Expired / invalid link ─────────────────────────────────────────────
+  // ── Expired / invalid link ────────────────────────────────────────────────
   if (sessionState === 'expired') return (
     <div style={S.page}>
       <style>{KF}</style>
@@ -297,12 +290,14 @@ export default function ResetPasswordPage() {
         </h2>
         <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.85rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
           {sessionMsg || 'This reset link has expired or has already been used.'}
+          <br />
+          <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>Reset links expire after 1 hour and can only be used once.</span>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <button
             onClick={() => navigate('login')}
             style={{
-              padding: '0.7rem 1.5rem',
+              padding: '0.75rem 1.5rem',
               background: 'linear-gradient(135deg,#f97316,#ea580c)',
               color: '#fff', border: 'none', borderRadius: 10,
               fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
@@ -325,7 +320,7 @@ export default function ResetPasswordPage() {
     </div>
   )
 
-  // ── Pending (verifying token) ─────────────────────────────────────────
+  // ── Pending (verifying token) ─────────────────────────────────────────────
   if (sessionState === 'pending') return (
     <div style={S.page}>
       <style>{KF}</style>

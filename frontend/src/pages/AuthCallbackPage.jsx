@@ -57,21 +57,26 @@ export default function AuthCallbackPage() {
           hash.includes('type=recovery') ||
           params.get('type') === 'recovery'
 
-        // ── Strategy 1: PKCE code exchange (Google OAuth, email link in newer Supabase) ──
+        // ── Strategy 1: PKCE auto-exchange (detectSessionInUrl:true handles this) ──
+        // When detectSessionInUrl:true is set in the Supabase client, it automatically
+        // exchanges any ?code= param found in the URL during client init.
+        // We must NOT call exchangeCodeForSession() manually — that would consume
+        // the one-time PKCE token a second time, causing otp_expired errors.
+        // Instead, just check if the auto-exchange already produced a session.
         if (params.has('code')) {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(params.get('code'))
-          if (error) throw error
-          if (data?.session) {
-            // If this is a password-recovery code, don't log the user in —
-            // send them to the reset-password screen instead.
+          // Give the auto-exchange a moment to complete, then check for session
+          await new Promise(r => setTimeout(r, 300))
+          const { data: { session: codeSession } } = await supabase.auth.getSession()
+          if (codeSession) {
             if (isRecovery) {
               done = true
               navigate('auth/reset-password')
               return
             }
-            await redirectUser(data.session)
+            await redirectUser(codeSession)
             return
           }
+          // If no session yet, fall through to the onAuthStateChange listener below
         }
 
         // ── Strategy 2: Implicit hash token (older magic links, some email verifications) ──
