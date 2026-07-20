@@ -127,15 +127,6 @@ export default function ResetPasswordPage() {
       }
     })
 
-    // ── Fallback: getSession() ─────────────────────────────────────────────
-    // If the exchange already completed before our listener was attached,
-    // getSession() will return the existing recovery session.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!resolvedRef.current && session) {
-        resolve('ready')
-      }
-    })
-
     // ── Timeout: if no event arrives within 12s, the link was bad ─────────
     const timer = setTimeout(() => {
       if (!resolvedRef.current) {

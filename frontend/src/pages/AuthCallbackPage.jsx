@@ -57,43 +57,10 @@ export default function AuthCallbackPage() {
           hash.includes('type=recovery') ||
           params.get('type') === 'recovery'
 
-        // ── Strategy 1: PKCE auto-exchange (detectSessionInUrl:true handles this) ──
-        // When detectSessionInUrl:true is set in the Supabase client, it automatically
-        // exchanges any ?code= param found in the URL during client init.
-        // We must NOT call exchangeCodeForSession() manually — that would consume
-        // the one-time PKCE token a second time, causing otp_expired errors.
-        // Instead, just check if the auto-exchange already produced a session.
-        if (params.has('code')) {
-          // Give the auto-exchange a moment to complete, then check for session
-          await new Promise(r => setTimeout(r, 300))
-          const { data: { session: codeSession } } = await supabase.auth.getSession()
-          if (codeSession) {
-            if (isRecovery) {
-              done = true
-              navigate('auth/reset-password')
-              return
-            }
-            await redirectUser(codeSession)
-            return
-          }
-          // If no session yet, fall through to the onAuthStateChange listener below
-        }
-
-        // ── Strategy 2: Implicit hash token (older magic links, some email verifications) ──
-        if (hash.includes('access_token=')) {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            if (isRecovery) {
-              done = true
-              navigate('auth/reset-password')
-              return
-            }
-            await redirectUser(session)
-            return
-          }
-        }
-
-        // ── Strategy 3: Check existing session (Supabase may have already set it) ──
+        // ── Strategy 1-3: Check if auto-exchange already produced a session ──
+        // detectSessionInUrl:true causes Supabase to auto-exchange ?code= during
+        // client init. We just need to check if it's done yet.
+        // Only call getSession() ONCE to avoid lock conflicts.
         const { data: { session: existing } } = await supabase.auth.getSession()
         if (existing) {
           if (isRecovery) {
