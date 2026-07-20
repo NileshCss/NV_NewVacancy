@@ -159,20 +159,27 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setError('')
     try {
-      const { error: updateErr } = await supabase.auth.updateUser({ password })
+      // Wrap updateUser in a 10-second timeout so we never hang forever
+      const updatePromise = supabase.auth.updateUser({ password })
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
+      )
+      const { error: updateErr } = await Promise.race([updatePromise, timeoutPromise])
       if (updateErr) throw updateErr
 
+      // Show success IMMEDIATELY — don't block on server-side cleanup
+      sessionStorage.setItem('pw_reset_success', '1')
       setSuccess(true)
 
-      // Mark success so LoginPage can show a banner
-      sessionStorage.setItem('pw_reset_success', '1')
-
-      // Clear caches and sign out all devices
+      // Clear local caches synchronously (instant)
       try { localStorage.removeItem('nv_auth') }    catch {}
       try { localStorage.removeItem('nv_profile') } catch {}
-      await supabase.auth.signOut({ scope: 'global' })
 
-      // Redirect to login
+      // Fire-and-forget: sign out in background WITHOUT awaiting.
+      // scope:'global' is a heavy server call (5–15s) — never block the UI on it.
+      supabase.auth.signOut().catch(() => {})
+
+      // Redirect to login after success animation
       setTimeout(() => navigate('login'), 2500)
 
     } catch (err) {
@@ -181,8 +188,10 @@ export default function ResetPasswordPage() {
         setError('New password must be different from your current password.')
       } else if (msg.toLowerCase().includes('weak')) {
         setError('Password is too weak. Please choose a stronger one.')
-      } else if (msg.toLowerCase().includes('session')) {
-        setError('Session expired. Please request a new password reset link.')
+      } else if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('timed out')) {
+        setError(msg.includes('timed out')
+          ? 'Request timed out. Please refresh the page and try again.'
+          : 'Session expired. Please request a new password reset link.')
       } else {
         setError(msg || 'Failed to update password. Please try again.')
       }
