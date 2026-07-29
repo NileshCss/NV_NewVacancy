@@ -12,6 +12,7 @@ import {
 } from '../services/api'
 import { getDashboardStats } from '../services/newsAffiliateService'
 import { timeAgo } from '../utils/helpers'
+import AdminLayout from '../components/admin/layout/AdminLayout'
 import NewsManager      from '../components/admin/NewsManager'
 import AffiliatesManager from '../components/admin/AffiliatesManager'
 import AdminAIAssistant  from '../components/admin/AdminAIAssistant'
@@ -365,37 +366,12 @@ export default function AdminPanel() {
     </div>
   )
 
-  // ── Render ─────────────────────────────────────────────────────
+  const currentLabel = NAV.find(n => n.id === section)?.label || 'Dashboard'
+
   return (
-    <div className="admin-layout" style={{ background: 'var(--bg-base)' }}>
-
-      {/* Mobile nav */}
-      <div className="admin-mobile-nav">
-        {NAV.map(n => (
-          <div key={n.id} className={`admin-mobile-nav-item ${section === n.id ? 'active' : ''}`} onClick={() => setSection(n.id)}>
-            {n.label}
-          </div>
-        ))}
-        <div className="admin-mobile-nav-item" onClick={() => navigate('home')}>← Site</div>
-      </div>
-
-      {/* Sidebar */}
-      <div className="admin-sidebar" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-        <div className="admin-sidebar-title" style={{ color: 'var(--text-muted)' }}>Admin Panel</div>
-        {NAV.map(n => (
-          <div key={n.id} className={`admin-nav-item ${section === n.id ? 'active' : ''}`}
-            style={{ color: section === n.id ? 'var(--brand)' : 'var(--text-secondary)' }}
-            onClick={() => setSection(n.id)}>
-            {n.label}
-          </div>
-        ))}
-        <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-          <div className="admin-nav-item" style={{ color: 'var(--text-secondary)' }} onClick={() => navigate('home')}>← Back to Site</div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="admin-content">
+    <AdminLayout currentSection={section} onSelectSection={setSection} sectionTitle={currentLabel}>
+      {/* ── Section Content ───────────────────────────────── */}
+      <div className="space-y-6">
 
         {/* DASHBOARD */}
         {section === 'dashboard' && (
@@ -703,6 +679,6 @@ export default function AdminPanel() {
 
       {/* ── CONFIRM MODAL ─────────────────────────────────────── */}
       <ConfirmModal />
-    </div>
+    </AdminLayout>
   )
 }

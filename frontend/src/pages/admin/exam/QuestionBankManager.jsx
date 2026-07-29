@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { fetchExams, createQuestion, updateQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
 import { FileSpreadsheet, Sparkles, Plus, Upload, Loader2, CheckCircle2, AlertTriangle, AlertCircle, ChevronRight, Menu, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import QuestionBankTree from './QuestionBankTree'
+import SyllabusHierarchyPanel from './SyllabusHierarchyPanel'
 import QuestionBankTopicView from './QuestionBankTopicView'
 import QuestionEditor from './QuestionEditor'
 
@@ -198,7 +198,7 @@ export default function QuestionBankManager() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start min-h-[680px]">
         {/* LEFT PANEL: Tree Navigation (Desktop 4 cols, Mobile Drawer) */}
         <div className={`md:col-span-4 lg:col-span-3 h-[680px] ${isMobileTreeOpen ? 'block' : 'hidden md:block'}`}>
-          <QuestionBankTree
+          <SyllabusHierarchyPanel
             selectedTopic={selectedTopic}
             onSelectTopic={(topic) => {
               setSelectedTopic(topic)

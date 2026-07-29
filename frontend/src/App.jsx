@@ -141,7 +141,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Navbar />
+      {!NO_FOOTER_PAGES.has(page) && <Navbar />}
       {!NO_FOOTER_PAGES.has(page) && <NewsTicker />}
       <main style={{ flex: 1 }}>{renderPage()}</main>
       {!NO_FOOTER_PAGES.has(page) && <Footer />}
