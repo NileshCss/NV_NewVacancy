@@ -108,7 +108,10 @@ exports.listQuestions = async (req, res) => {
     if (search) query = query.ilike('question_text', `%${search}%`);
     if (req.query.tag) query = query.contains('tags', [req.query.tag]);
 
-    const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
+    const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const { data, error } = await query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     if (error) throw error;
 
     let results = data;

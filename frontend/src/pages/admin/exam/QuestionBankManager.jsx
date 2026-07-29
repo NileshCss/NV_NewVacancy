@@ -166,41 +166,21 @@ export default function QuestionBankManager() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top Bar for Mobile Navigation & Global Actions */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-[var(--bg-card)] border border-[var(--border)] p-4 rounded-xl">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 min-w-0">
+      {/* Top Header Bar with Mobile Drawer Toggle */}
+      <div className="flex items-center justify-between gap-3 bg-[var(--bg-card)] border border-[var(--border)] p-3.5 sm:p-4 rounded-xl shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setIsMobileTreeOpen(!isMobileTreeOpen)}
-            className="md:hidden p-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg text-[var(--text-primary)]"
+            className="md:hidden px-3 py-1.5 bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 hover:bg-[var(--border)] transition shrink-0"
           >
-            <Menu size={18} />
+            <Menu size={16} />
+            <span>Syllabus</span>
           </button>
-          <div>
-            <h2 className="text-lg font-bold text-[var(--text-primary)]">Question Bank Management</h2>
-            <p className="text-xs text-[var(--text-muted)]">Organized Topic-wise with lazy loading tree navigation and fast CRUD.</p>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] truncate">Question Bank Management</h2>
+            <p className="text-xs text-[var(--text-muted)] truncate hidden sm:block">Organized Topic-wise with lazy loading tree navigation and fast CRUD.</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleAiExtractClick(selectedTopic)}
-            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-          >
-            <Sparkles size={15} /> AI Extract
-          </button>
-          <button
-            onClick={() => handleBulkImportClick(selectedTopic)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-          >
-            <FileSpreadsheet size={15} /> Bulk Import
-          </button>
-          <button
-            onClick={() => handleAddQuestionClick(selectedTopic)}
-            className="px-3 py-1.5 bg-[var(--brand)] hover:bg-[var(--brand-d)] text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-          >
-            <Plus size={15} /> Add Question
-          </button>
         </div>
       </div>
 

@@ -944,7 +944,7 @@ export const fetchQuestions = async (params = {}) => {
     if (params.search)     qQuery = qQuery.ilike('question_text', `%${params.search}%`)
     if (params.tag)        qQuery = qQuery.contains('tags', [params.tag])
 
-    const limit  = parseInt(params.limit)  || 100
+    const limit  = parseInt(params.limit)  || 500
     const offset = parseInt(params.offset) || 0
     qQuery = qQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
 
@@ -960,7 +960,7 @@ export const fetchQuestions = async (params = {}) => {
   if (params.search)     query = query.ilike('question_text', `%${params.search}%`)
   if (params.tag)        query = query.contains('tags', [params.tag])
 
-  const limit  = parseInt(params.limit)  || 100
+  const limit  = parseInt(params.limit)  || 500
   const offset = parseInt(params.offset) || 0
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
 
