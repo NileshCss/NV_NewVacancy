@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import HierarchyPanel from './HierarchyPanel'
 import QuestionContentPanel from './QuestionContentPanel'
 import { Layers, X } from 'lucide-react'
@@ -13,6 +13,17 @@ export default function QuestionBankWorkspace({
 }) {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
+  useEffect(() => {
+    if (isMobileDrawerOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isMobileDrawerOpen])
+
   return (
     <div className="space-y-4 min-w-0">
       {/* Mobile Drawer Floating Toggle Button */}
@@ -22,7 +33,7 @@ export default function QuestionBankWorkspace({
           className="w-full px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--border)] border border-[var(--border)] text-[var(--text-primary)] rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <Layers size={16} className="text-orange-500" />
-          <span>{selectedTopic ? `Topic: ${selectedTopic.name}` : 'Select Topic / Syllabus Hierarchy'}</span>
+          <span className="truncate">{selectedTopic ? `Topic: ${selectedTopic.name}` : 'Select Topic / Syllabus Hierarchy'}</span>
         </button>
       </div>
 
@@ -54,11 +65,24 @@ export default function QuestionBankWorkspace({
 
       {/* Mobile Drawer Overlay Sheet */}
       {isMobileDrawerOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end">
-          <div className="bg-[var(--bg-card)] w-4/5 max-w-sm h-full flex flex-col shadow-2xl">
-            <div className="p-3.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between">
-              <span className="font-bold text-xs text-[var(--text-primary)]">Syllabus Hierarchy</span>
-              <button onClick={() => setIsMobileDrawerOpen(false)} className="p-1 rounded-lg text-[var(--text-muted)]">
+        <div
+          className="md:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex justify-end"
+          onClick={() => setIsMobileDrawerOpen(false)}
+        >
+          <div
+            className="bg-[var(--bg-card)] w-4/5 max-w-sm h-full flex flex-col shadow-2xl border-l border-[var(--border)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 font-bold text-xs text-[var(--text-primary)]">
+                <Layers size={15} className="text-orange-500" />
+                <span>Syllabus Hierarchy</span>
+              </div>
+              <button
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="p-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition cursor-pointer"
+                aria-label="Close Hierarchy Panel"
+              >
                 <X size={18} />
               </button>
             </div>

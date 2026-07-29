@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useRouter } from '../../../context/RouterContext'
 import {
   LayoutDashboard, Briefcase, Newspaper, Gift, Radio,
@@ -59,28 +59,55 @@ const SIDEBAR_SECTIONS = [
 export default function AdminSidebar({ currentSection, onSelectSection, isMobileOpen, onCloseMobile }) {
   const { navigate } = useRouter()
 
+  // Lock background scroll on mobile when sidebar drawer is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isMobileOpen])
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
       {isMobileOpen && (
         <div
           onClick={onCloseMobile}
-          className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40"
+          className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-xs z-50"
+          aria-label="Close Mobile Navigation"
         />
       )}
 
       {/* Sidebar Container */}
       <aside className={`
         fixed lg:sticky top-0 lg:top-[57px] left-0 z-50 lg:z-30
-        w-64 h-screen lg:h-[calc(100vh-57px)]
+        w-72 lg:w-64 h-screen lg:h-[calc(100vh-57px)]
         bg-[var(--bg-card)] border-r border-[var(--border)]
-        flex flex-col transition-transform duration-200 ease-in-out select-none
+        flex flex-col transition-transform duration-300 ease-in-out select-none shadow-2xl lg:shadow-none
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        {/* Mobile Header */}
-        <div className="lg:hidden p-4 border-b border-[var(--border)] flex items-center justify-between">
-          <div className="font-bold text-sm text-[var(--text-primary)]">Admin Menu</div>
-          <button onClick={onCloseMobile} className="p-1 rounded-lg hover:bg-[var(--bg-surface)] text-[var(--text-muted)]">
+        {/* Mobile Header bar on top of mobile drawer */}
+        <div className="lg:hidden p-4 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 font-bold text-sm text-[var(--text-primary)]">
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center text-xs font-extrabold shadow-sm">
+              NV
+            </div>
+            <div className="flex items-baseline gap-1 font-bold text-sm text-[var(--text-primary)] tracking-tight">
+              <span>NewVacancy</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-black uppercase bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                Admin
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition cursor-pointer"
+            aria-label="Close Navigation Menu"
+          >
             <X size={18} />
           </button>
         </div>
@@ -101,7 +128,10 @@ export default function AdminSidebar({ currentSection, onSelectSection, isMobile
                     return (
                       <button
                         key={item.id}
-                        onClick={() => navigate('home')}
+                        onClick={() => {
+                          onCloseMobile?.()
+                          navigate('home')
+                        }}
                         className="w-full px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-[var(--border)] transition flex items-center justify-between cursor-pointer"
                       >
                         <span className="flex items-center gap-2.5">
