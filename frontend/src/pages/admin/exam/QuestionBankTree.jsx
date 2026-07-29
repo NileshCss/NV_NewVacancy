@@ -174,7 +174,8 @@ export default function QuestionBankTree({ selectedTopic, onSelectTopic }) {
                   <button
                     onClick={(e) => { e.stopPropagation(); selectExamAll(exam) }}
                     className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-0.5 ${examSelected ? 'bg-white/20 text-white' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'}`}
-                    title="View all questions in this exam"
+                    title="View all questions under this Exam (across all subjects, chapters and topics)"
+                    aria-label={`View all questions under ${exam.name}`}
                   >
                     <List size={10} /> All
                   </button>
@@ -205,7 +206,8 @@ export default function QuestionBankTree({ selectedTopic, onSelectTopic }) {
                             <button
                               onClick={(e) => { e.stopPropagation(); selectSubjectAll(exam, subject) }}
                               className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-0.5 ${subSelected ? 'bg-white/20 text-white' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'}`}
-                              title={`View all questions in ${subject.name}`}
+                              title={`View all questions under ${subject.name} (across all chapters and topics)`}
+                              aria-label={`View all questions under ${subject.name}`}
                             >
                               <List size={10} /> All
                             </button>
@@ -238,7 +240,8 @@ export default function QuestionBankTree({ selectedTopic, onSelectTopic }) {
                                       <button
                                         onClick={(e) => { e.stopPropagation(); selectChapterAll(exam, subject, chapter) }}
                                         className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-0.5 ${chapSelected ? 'bg-white/20 text-white' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'}`}
-                                        title={`View all questions in ${chapter.name}`}
+                                        title={`View all questions under ${chapter.name} (across all topics)`}
+                                        aria-label={`View all questions under ${chapter.name}`}
                                       >
                                         <List size={10} /> All
                                       </button>
