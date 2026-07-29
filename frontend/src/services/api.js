@@ -117,7 +117,7 @@ export const addJob = async (job) => {
   console.log('[addJob] payload:', payload)
   
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  const timeoutId = setTimeout(() => controller.abort(), 3000)
   
   try {
     // Try the service-role admin path first (bypasses RLS)
@@ -194,7 +194,7 @@ export const updateJob = async (id, job) => {
   console.log('[updateJob] id:', id, 'payload:', payload)
   
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000)  // 30s — updates can be slower
+  const timeoutId = setTimeout(() => controller.abort(), 3000)  // 3s fast timeout
   
   try {
     // Try the service-role admin path first (bypasses RLS)
@@ -372,14 +372,23 @@ export const fetchUsers = async () => {
 }
 
 
-/** Helper: get current session token + api base with 15-second timeout */
+let backendOfflineUntil = 0
+
+/** Helper: get current session token + api base with fast 2.5-second timeout and offline caching */
 async function adminFetch(path, options = {}) {
+  // If backend was detected offline within the last 30s, fail fast to allow direct Supabase fallback instantly (0ms)
+  if (Date.now() < backendOfflineUntil) {
+    throw new Error('Backend server is offline (cached bypass)')
+  }
+
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   const apiBase = getApiBase()
   
+  // Use fast 2.5s timeout by default (override with options.timeout if needed)
+  const timeoutMs = options.timeout || 2500
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   
   try {
     const res = await fetch(`${apiBase}${path}`, {
@@ -392,6 +401,8 @@ async function adminFetch(path, options = {}) {
       signal: controller.signal
     })
     clearTimeout(timeoutId)
+    backendOfflineUntil = 0
+
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
       const errObj = new Error(json.error || `Request failed (${res.status})`)
@@ -403,8 +414,10 @@ async function adminFetch(path, options = {}) {
     return json
   } catch (err) {
     clearTimeout(timeoutId)
-    if (err.name === 'AbortError') {
-      throw new Error('Connection timed out')
+    if (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError') || err.message?.includes('timed out')) {
+      // Cache offline status for 30s so subsequent operations execute in ~50ms via direct Supabase
+      backendOfflineUntil = Date.now() + 30000
+      console.warn('[adminFetch] Backend server unreachable/timed out. Bypassing backend calls for 30s.')
     }
     throw err
   }
