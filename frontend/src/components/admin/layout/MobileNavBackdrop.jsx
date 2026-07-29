@@ -6,7 +6,11 @@ export default function MobileNavBackdrop({ isOpen, onClose }) {
   return (
     <div
       onClick={onClose}
-      className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-xs z-50 transition-opacity duration-300 animate-fade-in cursor-pointer"
+      onTouchEnd={(e) => {
+        e.preventDefault()
+        onClose()
+      }}
+      className="lg:hidden fixed inset-0 bg-black/75 backdrop-blur-xs z-[60] transition-opacity duration-300 animate-fade-in cursor-pointer"
       aria-hidden="true"
     />
   )

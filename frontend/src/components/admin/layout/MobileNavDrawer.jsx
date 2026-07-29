@@ -70,10 +70,15 @@ export default function MobileNavDrawer({ isOpen, onClose, currentSection, onSel
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  const handleCloseTrigger = (e) => {
+    e?.stopPropagation()
+    onClose()
+  }
+
   return (
     <aside
       className={`
-        lg:hidden fixed top-0 left-0 z-50
+        lg:hidden fixed top-0 left-0 z-[70]
         w-[85vw] max-w-xs h-screen
         bg-[var(--bg-card)] border-r border-[var(--border)]
         flex flex-col transition-transform duration-300 ease-in-out select-none shadow-2xl
@@ -81,6 +86,7 @@ export default function MobileNavDrawer({ isOpen, onClose, currentSection, onSel
       `}
       aria-label="Mobile Navigation Menu"
       aria-hidden={!isOpen}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Clean Drawer Header */}
       <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between shrink-0">
@@ -96,12 +102,14 @@ export default function MobileNavDrawer({ isOpen, onClose, currentSection, onSel
           </div>
         </div>
 
+        {/* High Contrast Reliable Close Button */}
         <button
-          onClick={onClose}
-          className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition cursor-pointer"
+          onClick={handleCloseTrigger}
+          onTouchEnd={handleCloseTrigger}
+          className="w-9 h-9 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] hover:bg-orange-500 hover:text-white transition flex items-center justify-center cursor-pointer shadow-xs"
           aria-label="Close Navigation Menu"
         >
-          <X size={18} />
+          <X size={20} />
         </button>
       </div>
 
@@ -121,8 +129,12 @@ export default function MobileNavDrawer({ isOpen, onClose, currentSection, onSel
                   return (
                     <button
                       key={item.id}
-                      onClick={() => {
-                        onClose()
+                      onClick={(e) => {
+                        handleCloseTrigger(e)
+                        navigate('home')
+                      }}
+                      onTouchEnd={(e) => {
+                        handleCloseTrigger(e)
                         navigate('home')
                       }}
                       className="w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-[var(--border)] transition flex items-center justify-between cursor-pointer"
@@ -139,9 +151,13 @@ export default function MobileNavDrawer({ isOpen, onClose, currentSection, onSel
                 return (
                   <button
                     key={item.id}
-                    onClick={() => {
+                    onClick={(e) => {
                       onSelectSection(item.id)
-                      onClose()
+                      handleCloseTrigger(e)
+                    }}
+                    onTouchEnd={(e) => {
+                      onSelectSection(item.id)
+                      handleCloseTrigger(e)
                     }}
                     className={`
                       w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-semibold
