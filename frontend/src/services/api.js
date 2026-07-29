@@ -910,25 +910,63 @@ export const reorderTopics = async (items) => {
 
 export const fetchQuestions = async (params = {}) => {
   try {
-    const query = new URLSearchParams(params).toString()
+    const query = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== '' && v !== null))
+    ).toString()
     const res = await adminFetch(`/exam/questions?${query}`, { method: 'GET' })
     if (res && res.success) return res.data
   } catch (err) {
     console.warn('[fetchQuestions] Backend offline or error, falling back to direct Supabase query:', err.message)
   }
+
+  // --- Direct Supabase fallback ---
+  // Build the question_exam_map filter first if any hierarchy param is given
+  const hasMapFilter = params.exam_id || params.subject_id || params.chapter_id || params.topic_id
+
+  if (hasMapFilter) {
+    // Query via question_exam_map join so we can filter by hierarchy
+    let mapQuery = supabase.from('question_exam_map').select('question_id')
+    if (params.exam_id)    mapQuery = mapQuery.eq('exam_id', params.exam_id)
+    if (params.subject_id) mapQuery = mapQuery.eq('subject_id', params.subject_id)
+    if (params.chapter_id) mapQuery = mapQuery.eq('chapter_id', params.chapter_id)
+    if (params.topic_id)   mapQuery = mapQuery.eq('topic_id', params.topic_id)
+
+    const { data: mapRows, error: mapErr } = await mapQuery
+    if (mapErr) throw dbError(mapErr)
+    if (!mapRows || mapRows.length === 0) return []
+
+    const questionIds = [...new Set(mapRows.map(r => r.question_id))]
+
+    // Now fetch the actual questions filtered by those IDs + any other params
+    let qQuery = supabase.from('questions').select('*, question_exam_map(*)').in('id', questionIds)
+    if (params.difficulty) qQuery = qQuery.eq('difficulty', params.difficulty)
+    if (params.status)     qQuery = qQuery.eq('status', params.status)
+    if (params.search)     qQuery = qQuery.ilike('question_text', `%${params.search}%`)
+    if (params.tag)        qQuery = qQuery.contains('tags', [params.tag])
+
+    const limit  = parseInt(params.limit)  || 100
+    const offset = parseInt(params.offset) || 0
+    qQuery = qQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+
+    const { data, error } = await qQuery
+    if (error) throw dbError(error)
+    return data || []
+  }
+
+  // No hierarchy filter — plain question fetch
   let query = supabase.from('questions').select('*, question_exam_map(*)')
   if (params.difficulty) query = query.eq('difficulty', params.difficulty)
-  if (params.status) query = query.eq('status', params.status)
-  if (params.search) query = query.ilike('question_text', `%${params.search}%`)
-  if (params.tag) query = query.contains('tags', [params.tag])
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(100)
+  if (params.status)     query = query.eq('status', params.status)
+  if (params.search)     query = query.ilike('question_text', `%${params.search}%`)
+  if (params.tag)        query = query.contains('tags', [params.tag])
+
+  const limit  = parseInt(params.limit)  || 100
+  const offset = parseInt(params.offset) || 0
+  query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+
+  const { data, error } = await query
   if (error) throw dbError(error)
-  
-  let results = data || []
-  if (params.exam_id) {
-    results = results.filter(q => q.question_exam_map?.some(map => map.exam_id === params.exam_id))
-  }
-  return results
+  return data || []
 }
 
 export const fetchQuestion = async (id) => {

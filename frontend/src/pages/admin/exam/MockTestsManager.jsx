@@ -186,15 +186,16 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   const [manualSubjectId, setManualSubjectId] = useState('')
 
   const handleSearch = async (subjId = manualSubjectId) => {
-    if (!searchTerm.trim() && !form.exam_id && !subjId) return
+    // Only skip search if we have absolutely nothing to scope on
+    if (!form.exam_id && !subjId && !searchTerm.trim()) return
     setSearchLoading(true)
     try {
       const results = await fetchQuestions({
-        search: searchTerm,
-        exam_id: form.exam_id,
+        search: searchTerm || undefined,
+        exam_id: form.exam_id || undefined,
         subject_id: subjId || undefined,
         status: 'approved',
-        limit: 100, // fetch up to 100 questions for easier selection
+        limit: 100,
       })
       setSearchResults(results || [])
     } catch {
@@ -590,8 +591,15 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
                   })}
                 </div>
               )}
-              {!searchLoading && searchResults.length === 0 && searchTerm.length > 2 && (
-                <p className="text-xs text-[var(--text-muted)] text-center py-4">No approved questions found. Try a different search term.</p>
+              {!searchLoading && searchResults.length === 0 && (
+                <div className="text-center py-6 text-xs text-[var(--text-muted)]">
+                  {!form.exam_id
+                    ? '👆 Select an Exam above to browse approved questions'
+                    : searchTerm.length > 0
+                      ? `No approved questions found matching "${searchTerm}". Try a different keyword.`
+                      : 'No approved questions found for the selected exam/subject. Try changing the subject filter or adding questions to the bank first.'
+                  }
+                </div>
               )}
             </div>
           )}
