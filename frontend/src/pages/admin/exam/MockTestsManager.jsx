@@ -82,6 +82,10 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   const [publishing, setPublishing] = useState(false)
   const [selectionTab, setSelectionTab] = useState('manual')  // manual | random | ai
 
+  // Guard: prevents the exam_id / subject_id change effects from resetting form
+  // fields while the existing test data is being hydrated on initial load.
+  const isInitialLoad = React.useRef(!!testId)
+
   // Core fields
   const [form, setForm] = useState({
     name: '', exam_id: '', subject_id: '', chapter_id: '',
@@ -116,16 +120,19 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   }, [])
 
   useEffect(() => {
-    if (form.exam_id) {
-      fetchSubjects(form.exam_id).then(setSubjects).catch(() => {})
+    if (!form.exam_id) return
+    fetchSubjects(form.exam_id).then(setSubjects).catch(() => {})
+    // Only reset dependent fields when the user manually changes the exam (not during initial load)
+    if (!isInitialLoad.current) {
       setForm(f => ({ ...f, subject_id: '', chapter_id: '' }))
-      setSubjects([])
     }
   }, [form.exam_id])
 
   useEffect(() => {
-    if (form.subject_id) {
-      fetchChapters(form.subject_id).then(setChapters).catch(() => {})
+    if (!form.subject_id) return
+    fetchChapters(form.subject_id).then(setChapters).catch(() => {})
+    // Only reset chapter when user manually changes subject (not during initial load)
+    if (!isInitialLoad.current) {
       setForm(f => ({ ...f, chapter_id: '' }))
     }
   }, [form.subject_id])
@@ -134,6 +141,7 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
   useEffect(() => {
     if (!testId) return
     setLoading(true)
+    isInitialLoad.current = true
     fetchMockTest(testId)
       .then(data => {
         if (!data) return
@@ -167,7 +175,11 @@ function MockTestBuilder({ testId, onClose, onSaved }) {
         setSelectionTab(data.question_selection_mode || 'manual')
       })
       .catch(() => toast.error('Failed to load test'))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        // Allow a tick for all state updates to flush before re-enabling the reset guards
+        setTimeout(() => { isInitialLoad.current = false }, 0)
+      })
   }, [testId])
 
   // Manual question search
