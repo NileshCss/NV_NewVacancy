@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { fetchExams, createQuestion, updateQuestion, bulkImportQuestions, extractQuestionsAI, importQuestionsFile } from '../../../services/api'
 import { FileSpreadsheet, Sparkles, Plus, Upload, Loader2, CheckCircle2, AlertTriangle, AlertCircle, ChevronRight, Menu, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import QuestionBankPageHeader from './QuestionBankPageHeader'
 import QuestionBankWorkspace from './QuestionBankWorkspace'
 import QuestionEditor from './QuestionEditor'
 
@@ -166,22 +167,8 @@ export default function QuestionBankManager() {
 
   return (
     <div className="space-y-4 min-w-0">
-      {/* Top Header Bar with Mobile Drawer Toggle */}
-      <div className="flex items-center justify-between gap-3 bg-[var(--bg-card)] border border-[var(--border)] p-3.5 sm:p-4 rounded-xl shadow-sm">
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => setIsMobileTreeOpen(!isMobileTreeOpen)}
-            className="md:hidden px-3 py-1.5 bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5 hover:bg-[var(--border)] transition shrink-0"
-          >
-            <Menu size={16} />
-            <span>Syllabus</span>
-          </button>
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] truncate">Question Bank Management</h2>
-            <p className="text-xs text-[var(--text-muted)] truncate hidden sm:block">Organized Topic-wise with lazy loading tree navigation and fast CRUD.</p>
-          </div>
-        </div>
-      </div>
+      {/* TOP PAGE HEADER BANNER */}
+      <QuestionBankPageHeader />
 
       {/* Editor Modal / Inline Overlay */}
       {isEditorOpen && (
