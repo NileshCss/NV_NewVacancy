@@ -3,7 +3,7 @@ import { fetchQuestions, updateQuestionStatus, deleteQuestion, duplicateQuestion
 import {
   Edit2, Trash2, Plus, Loader2, Sparkles, Check, X, FileSpreadsheet,
   Search, Copy, Eye, MoveRight, Download, Printer,
-  ChevronLeft, ChevronRight, FileText, CheckCircle2, Clock, XCircle, ShieldCheck
+  ChevronLeft, ChevronRight, FileText, CheckCircle2, Clock, XCircle, ShieldCheck, AlertTriangle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import QuestionBankMoveModal from './QuestionBankMoveModal'
@@ -36,6 +36,7 @@ export default function QuestionBankTopicView({
   const [allQuestions, setAllQuestions] = useState([])
   const [loading, setLoading] = useState(false)
   const [verifyingAll, setVerifyingAll] = useState(false)
+  const [deletingDuplicates, setDeletingDuplicates] = useState(false)
 
   // Pagination & Page Size
   const [page, setPage] = useState(1)
@@ -56,7 +57,7 @@ export default function QuestionBankTopicView({
     setSelectedIds(new Set())
   }, [selectedTopic?.id, selectedTopic?.type, filters])
 
-  // Load ALL questions for the selected scope to get exact stats & enable fast client filtering/pagination
+  // Load ALL questions for the selected scope
   const loadQuestions = async () => {
     if (!selectedTopic) return
     setLoading(true)
@@ -64,7 +65,7 @@ export default function QuestionBankTopicView({
       const scopeParams = getScopeParams(selectedTopic)
       const queryParams = {
         ...scopeParams,
-        limit: 1000, // Fetch up to 1000 questions in scope for complete list
+        limit: 1000,
       }
 
       const res = await fetchQuestions(queryParams)
@@ -79,20 +80,60 @@ export default function QuestionBankTopicView({
 
   useEffect(() => { loadQuestions() }, [selectedTopic?.id, selectedTopic?.type])
 
-  // Overall Scope Statistics (calculated over ALL questions in scope)
+  // Smart Duplicate Detection Algorithm
+  // Identifies questions that have `possible_duplicate_of` OR identical `question_text` (keeping 1st original) OR starts with `[Copy]`
+  const { duplicateQuestions, duplicateSet } = useMemo(() => {
+    const textCounts = new Map()
+    allQuestions.forEach(q => {
+      const key = (q.question_text || '').trim().toLowerCase()
+      if (key) textCounts.set(key, (textCounts.get(key) || 0) + 1)
+    })
+
+    const textSeen = new Set()
+    const duplicates = []
+    const dupSet = new Set()
+
+    allQuestions.forEach(q => {
+      const key = (q.question_text || '').trim().toLowerCase()
+      const isExplicitDup = !!q.possible_duplicate_of || (q.question_text || '').startsWith('[Copy]')
+      const isRepeatedText = key && textCounts.get(key) > 1
+
+      if (isExplicitDup) {
+        duplicates.push(q)
+        dupSet.add(q.id)
+      } else if (isRepeatedText) {
+        if (textSeen.has(key)) {
+          duplicates.push(q) // second or subsequent copy of exact same question text
+          dupSet.add(q.id)
+        } else {
+          textSeen.add(key) // keep the 1st instance as original
+        }
+      }
+    })
+
+    return { duplicateQuestions: duplicates, duplicateSet: dupSet }
+  }, [allQuestions])
+
+  // Overall Scope Statistics
   const stats = useMemo(() => {
     const total = allQuestions.length
     const approved = allQuestions.filter(q => q.status === 'approved').length
     const rejected = allQuestions.filter(q => q.status === 'rejected').length
     const pending  = allQuestions.filter(q => q.status !== 'approved' && q.status !== 'rejected').length
-    return { total, approved, pending, rejected }
-  }, [allQuestions])
+    const duplicates = duplicateQuestions.length
+    return { total, approved, pending, rejected, duplicates }
+  }, [allQuestions, duplicateQuestions])
 
-  // Filtered Questions (after difficulty, status, search filtering)
+  // Filtered Questions (after difficulty, status, duplicates, search filtering)
   const filteredQuestions = useMemo(() => {
     return allQuestions.filter(q => {
       if (filters.difficulty && q.difficulty !== filters.difficulty) return false
-      if (filters.status && q.status !== filters.status) return false
+      if (filters.status === 'duplicates') {
+        if (!duplicateSet.has(q.id)) return false
+      } else if (filters.status && q.status !== filters.status) {
+        return false
+      }
+
       if (filters.search) {
         const s = filters.search.toLowerCase()
         const textMatch = q.question_text?.toLowerCase().includes(s)
@@ -101,7 +142,7 @@ export default function QuestionBankTopicView({
       }
       return true
     })
-  }, [allQuestions, filters])
+  }, [allQuestions, filters, duplicateSet])
 
   // Paginated View Slice
   const paginatedQuestions = useMemo(() => {
@@ -210,7 +251,7 @@ export default function QuestionBankTopicView({
     loadQuestions()
   }
 
-  // Verify All Pending (Header One-Click)
+  // Verify All Pending
   const handleVerifyAllPending = async () => {
     const pending = allQuestions.filter(q => q.status !== 'approved' && q.status !== 'rejected')
     if (!pending.length) return toast.error('No pending questions to verify!')
@@ -222,6 +263,28 @@ export default function QuestionBankTopicView({
     toast.success(`${pending.length} questions verified!`)
     setVerifyingAll(false)
     loadQuestions()
+  }
+
+  // ONE-CLICK DELETE ALL DUPLICATE QUESTIONS
+  const handleDeleteAllDuplicates = async () => {
+    if (duplicateQuestions.length === 0) return toast.error('No duplicate questions found!')
+    if (!confirm(`Are you sure you want to delete ALL ${duplicateQuestions.length} duplicate questions in ${selectedTopic.name}?\n\nThe original copy of each question will be preserved.`)) return
+
+    setDeletingDuplicates(true)
+    const t = toast.loading(`Deleting ${duplicateQuestions.length} duplicate questions...`)
+    try {
+      for (const q of duplicateQuestions) {
+        await deleteQuestion(q.id).catch(() => {})
+      }
+      toast.dismiss(t)
+      toast.success(`Successfully deleted ${duplicateQuestions.length} duplicate questions! 🎉`)
+      loadQuestions()
+    } catch (err) {
+      toast.dismiss(t)
+      toast.error('Error deleting duplicate questions')
+    } finally {
+      setDeletingDuplicates(false)
+    }
   }
 
   const handleConfirmMove = async (targetMapping) => {
@@ -284,6 +347,19 @@ export default function QuestionBankTopicView({
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* ONE-CLICK DELETE ALL DUPLICATES BUTTON */}
+            {stats.duplicates > 0 && (
+              <button
+                onClick={handleDeleteAllDuplicates}
+                disabled={deletingDuplicates}
+                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm animate-pulse"
+                title="Delete all duplicate questions with one click"
+              >
+                {deletingDuplicates ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />}
+                Delete All Duplicates ({stats.duplicates})
+              </button>
+            )}
+
             {stats.pending > 0 && (
               <button
                 onClick={handleVerifyAllPending}
@@ -321,6 +397,12 @@ export default function QuestionBankTopicView({
             <span className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
               <XCircle size={13} /> Rejected: <strong>{stats.rejected}</strong>
             </span>
+            {stats.duplicates > 0 && (
+              <span className="bg-red-600/20 border border-red-500/40 text-red-400 px-3 py-1 rounded-full font-bold flex items-center gap-1 cursor-pointer hover:bg-red-600/30 transition"
+                onClick={() => setFilters(f => ({ ...f, status: 'duplicates' }))} title="Click to filter duplicate questions">
+                <AlertTriangle size={13} /> Duplicates: <strong>{stats.duplicates}</strong> (click to filter)
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -362,6 +444,7 @@ export default function QuestionBankTopicView({
             <option value="approved">Verified</option>
             <option value="draft">Pending</option>
             <option value="rejected">Rejected</option>
+            {stats.duplicates > 0 && <option value="duplicates">⚠️ Duplicates Only ({stats.duplicates})</option>}
           </select>
 
           {(filters.search || filters.difficulty || filters.status) && (
@@ -431,17 +514,28 @@ export default function QuestionBankTopicView({
                   const isSelected = selectedIds.has(q.id)
                   const isApproved = q.status === 'approved'
                   const isRejected = q.status === 'rejected'
+                  const isDup      = duplicateSet.has(q.id)
 
                   return (
-                    <tr key={q.id} className={`hover:bg-[var(--bg-surface)]/60 transition ${isSelected ? 'bg-blue-950/20' : ''}`}>
+                    <tr key={q.id} className={`hover:bg-[var(--bg-surface)]/60 transition ${isSelected ? 'bg-blue-950/20' : ''} ${isDup ? 'bg-red-950/10' : ''}`}>
                       <td className="p-3 text-center">
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelectRow(q.id)} className="rounded cursor-pointer" />
                       </td>
 
                       <td className="p-3 font-medium text-[var(--text-primary)] max-w-lg">
                         <div className="line-clamp-2 leading-relaxed">{q.question_text}</div>
-                        {q.possible_duplicate_of && (
-                          <span className="inline-block mt-1 text-[10px] bg-red-500/10 border border-red-500/30 text-red-400 font-bold px-2 py-0.5 rounded">⚠ Possible Duplicate</span>
+                        {isDup && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/20 border border-red-500/40 text-red-400 font-bold px-2 py-0.5 rounded">
+                              <AlertTriangle size={11} /> Duplicate Question
+                            </span>
+                            <button
+                              onClick={() => handleDelete(q.id)}
+                              className="text-[10px] text-red-400 hover:text-red-300 underline font-semibold"
+                            >
+                              Delete Duplicate
+                            </button>
+                          </div>
                         )}
                       </td>
 
