@@ -1,5 +1,6 @@
 import React from 'react'
 import { ChevronRight, ChevronDown, Folder, FolderOpen, Book, BookOpen, FileText, Loader2, List } from 'lucide-react'
+import HierarchySkeleton from './HierarchySkeleton'
 
 export default function HierarchyTree({
   exams,
@@ -25,12 +26,7 @@ export default function HierarchyTree({
   const isNodeSelected = (type, id) => selectedTopic?.type === type && selectedTopic?.id === id
 
   if (loadingExams) {
-    return (
-      <div className="p-8 text-center text-[var(--text-muted)] flex flex-col items-center gap-2.5">
-        <Loader2 className="animate-spin text-orange-500" size={22} />
-        <span className="font-semibold text-xs">Loading Syllabus Tree...</span>
-      </div>
-    )
+    return <HierarchySkeleton />
   }
 
   if (!exams || exams.length === 0) {
@@ -42,7 +38,7 @@ export default function HierarchyTree({
   }
 
   return (
-    <div className="space-y-1 text-xs">
+    <div className="space-y-1 text-xs select-none">
       {exams.map((exam) => {
         if (search && !exam.name.toLowerCase().includes(search.toLowerCase())) return null
         const isExamExpanded = expandedExams.has(exam.id)

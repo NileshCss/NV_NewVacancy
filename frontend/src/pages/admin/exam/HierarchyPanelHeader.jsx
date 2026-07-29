@@ -10,24 +10,26 @@ export default function HierarchyPanelHeader({ onExpandAll, onCollapseAll }) {
         <span className="truncate">Syllabus Hierarchy</span>
       </div>
 
-      {/* Grouped Action Buttons */}
+      {/* Grouped Action Buttons with Compact Labels */}
       <div className="flex items-center gap-1 bg-[var(--bg-card)] border border-[var(--border)] p-0.5 rounded-xl shrink-0">
         <button
           onClick={onExpandAll}
-          title="Expand All Nodes"
-          aria-label="Expand All Nodes"
-          className="p-1.5 hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-orange-500 rounded-lg transition cursor-pointer"
+          title="Expand all tree nodes"
+          aria-label="Expand all"
+          className="px-2 py-1 hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-orange-500 rounded-lg transition text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
         >
-          <Maximize2 size={13} />
+          <Maximize2 size={12} />
+          <span className="hidden sm:inline">Expand all</span>
         </button>
         <div className="w-px h-3 bg-[var(--border)]" />
         <button
           onClick={onCollapseAll}
-          title="Collapse All Nodes"
-          aria-label="Collapse All Nodes"
-          className="p-1.5 hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-orange-500 rounded-lg transition cursor-pointer"
+          title="Collapse all tree nodes"
+          aria-label="Collapse all"
+          className="px-2 py-1 hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-orange-500 rounded-lg transition text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
         >
-          <Minimize2 size={13} />
+          <Minimize2 size={12} />
+          <span className="hidden sm:inline">Collapse all</span>
         </button>
       </div>
     </div>
