@@ -24,12 +24,19 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Public/Admin list & view
 router.get('/', softAuth, questionsController.listQuestions);
+
+// Topic-based helpers (must be before /:id to avoid param conflicts)
+router.get('/topic-counts', softAuth, questionsController.getTopicQuestionCounts);
+router.patch('/bulk-move', requireAdmin, questionsController.bulkMoveQuestions);
+
 router.get('/:id', softAuth, questionsController.getQuestion);
 
 // Admin-only management
 router.post('/', requireAdmin, questionsController.createQuestion);
 router.patch('/:id', requireAdmin, questionsController.updateQuestion);
 router.patch('/:id/status', requireAdmin, questionsController.updateQuestionStatus);
+router.patch('/:id/move', requireAdmin, questionsController.moveQuestion);
+router.post('/:id/duplicate', requireAdmin, questionsController.duplicateQuestion);
 router.delete('/:id', requireAdmin, questionsController.deleteQuestion);
 router.post('/bulk-import', requireAdmin, questionsController.bulkImportCsv);
 router.post('/extract-ai', requireAdmin, questionsController.extractQuestionsAI);

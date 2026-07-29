@@ -742,3 +742,156 @@ exports.importFile = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// GET /topic-counts?topic_ids=id1,id2,...
+// Returns { [topic_id]: count } — used by the tree sidebar for question count badges
+exports.getTopicQuestionCounts = async (req, res) => {
+  try {
+    const { topic_ids } = req.query;
+    if (!topic_ids) return res.json({ success: true, data: {} });
+
+    const ids = topic_ids.split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.json({ success: true, data: {} });
+
+    const client = getClientForRequest(req);
+    const { data, error } = await client
+      .from('question_exam_map')
+      .select('topic_id')
+      .in('topic_id', ids);
+
+    if (error) throw error;
+
+    const counts = {};
+    for (const id of ids) counts[id] = 0;
+    for (const row of (data || [])) {
+      if (row.topic_id) counts[row.topic_id] = (counts[row.topic_id] || 0) + 1;
+    }
+
+    res.json({ success: true, data: counts });
+  } catch (err) {
+    logger.error('Error fetching topic question counts:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// POST /:id/duplicate
+// Creates a draft copy of a question (same topic mapping)
+exports.duplicateQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const client = getClientForRequest(req);
+
+    // Fetch original question + mappings
+    const { data: original, error: fetchErr } = await client
+      .from('questions')
+      .select('*, question_exam_map(*)')
+      .eq('id', id)
+      .single();
+    if (fetchErr) throw fetchErr;
+    if (!original) return res.status(404).json({ success: false, error: 'Question not found' });
+
+    // Build duplicate payload — strip DB-generated fields
+    const { id: _id, created_at, updated_at, reviewed_by, question_exam_map, ...rest } = original;
+    const duplicate = {
+      ...rest,
+      question_text: `[Copy] ${rest.question_text}`,
+      status: 'draft',
+      source: 'duplicate',
+      possible_duplicate_of: id,
+      created_by: req.user.id,
+    };
+
+    const { data: created, error: createErr } = await client
+      .from('questions')
+      .insert([duplicate])
+      .select()
+      .single();
+    if (createErr) throw createErr;
+
+    // Duplicate all exam mappings
+    if (question_exam_map && question_exam_map.length > 0) {
+      const maps = question_exam_map.map(({ id: _mid, created_at: _cat, ...m }) => ({
+        ...m,
+        question_id: created.id,
+      }));
+      await client.from('question_exam_map').insert(maps);
+    }
+
+    res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    logger.error('Error duplicating question:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// PATCH /:id/move
+// Moves a question to a new topic by updating its question_exam_map entry
+exports.moveQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { exam_id, subject_id, chapter_id, topic_id } = req.body;
+    if (!topic_id) return res.status(400).json({ success: false, error: 'topic_id is required' });
+
+    const client = getClientForRequest(req);
+
+    // Delete existing mappings for this question, then insert new one
+    await client.from('question_exam_map').delete().eq('question_id', id);
+
+    const { error: insertErr } = await client.from('question_exam_map').insert([{
+      question_id: id,
+      exam_id: exam_id || null,
+      subject_id: subject_id || null,
+      chapter_id: chapter_id || null,
+      topic_id,
+    }]);
+    if (insertErr) throw insertErr;
+
+    // Update question updated_at
+    await client.from('questions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    res.json({ success: true, message: 'Question moved successfully' });
+  } catch (err) {
+    logger.error('Error moving question:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// PATCH /bulk-move
+// Moves multiple questions to a new topic
+exports.bulkMoveQuestions = async (req, res) => {
+  try {
+    const { question_ids, exam_id, subject_id, chapter_id, topic_id } = req.body;
+    if (!topic_id) return res.status(400).json({ success: false, error: 'topic_id is required' });
+    if (!Array.isArray(question_ids) || question_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'question_ids array is required' });
+    }
+
+    const client = getClientForRequest(req);
+
+    // Remove existing mappings for all affected questions
+    await client.from('question_exam_map').delete().in('question_id', question_ids);
+
+    // Insert new mappings
+    const maps = question_ids.map(qid => ({
+      question_id: qid,
+      exam_id: exam_id || null,
+      subject_id: subject_id || null,
+      chapter_id: chapter_id || null,
+      topic_id,
+    }));
+    const { error: insertErr } = await client.from('question_exam_map').insert(maps);
+    if (insertErr) throw insertErr;
+
+    // Batch-update updated_at
+    await client.from('questions')
+      .update({ updated_at: new Date().toISOString() })
+      .in('id', question_ids);
+
+    res.json({ success: true, moved: question_ids.length });
+  } catch (err) {
+    logger.error('Error bulk moving questions:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};

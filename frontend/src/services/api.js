@@ -1041,6 +1041,111 @@ export const importQuestionsFile = async (file, examId) => {
   return json.data
 }
 
+export const duplicateQuestion = async (id) => {
+  try {
+    const res = await adminFetch(`/exam/questions/${id}/duplicate`, { method: 'POST' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[duplicateQuestion] Backend offline or error, falling back to direct Supabase logic:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  
+  const { data: original, error: fetchErr } = await freshClient.from('questions').select('*, question_exam_map(*)').eq('id', id).single()
+  if (fetchErr) throw dbError(fetchErr)
+  
+  const { id: _id, created_at, updated_at, reviewed_by, question_exam_map, ...rest } = original
+  const duplicate = {
+    ...rest,
+    question_text: `[Copy] ${rest.question_text}`,
+    status: 'draft',
+    source: 'duplicate',
+    possible_duplicate_of: id,
+    created_by: session?.user?.id
+  }
+  
+  const { data: created, error: createErr } = await freshClient.from('questions').insert([duplicate]).select().single()
+  if (createErr) throw dbError(createErr)
+  
+  if (question_exam_map && question_exam_map.length > 0) {
+    const maps = question_exam_map.map(({ id: _mid, created_at: _cat, ...m }) => ({ ...m, question_id: created.id }))
+    await freshClient.from('question_exam_map').insert(maps)
+  }
+  return created
+}
+
+export const moveQuestion = async (id, mapping) => {
+  try {
+    const res = await adminFetch(`/exam/questions/${id}/move`, { method: 'PATCH', body: JSON.stringify(mapping) })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[moveQuestion] Backend offline or error, falling back to direct Supabase logic:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  
+  await freshClient.from('question_exam_map').delete().eq('question_id', id)
+  const { error } = await freshClient.from('question_exam_map').insert([{
+    question_id: id,
+    exam_id: mapping.exam_id || null,
+    subject_id: mapping.subject_id || null,
+    chapter_id: mapping.chapter_id || null,
+    topic_id: mapping.topic_id
+  }])
+  if (error) throw dbError(error)
+  await freshClient.from('questions').update({ updated_at: new Date().toISOString() }).eq('id', id)
+  return { success: true }
+}
+
+export const bulkMoveQuestions = async (questionIds, mapping) => {
+  try {
+    const res = await adminFetch('/exam/questions/bulk-move', {
+      method: 'PATCH',
+      body: JSON.stringify({ question_ids: questionIds, ...mapping })
+    })
+    if (res && res.success) return res
+  } catch (err) {
+    console.warn('[bulkMoveQuestions] Backend offline or error, falling back to direct Supabase logic:', err.message)
+  }
+  await ensureActiveSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  const freshClient = createFreshClient(session?.access_token)
+  
+  await freshClient.from('question_exam_map').delete().in('question_id', questionIds)
+  const maps = questionIds.map(qid => ({
+    question_id: qid,
+    exam_id: mapping.exam_id || null,
+    subject_id: mapping.subject_id || null,
+    chapter_id: mapping.chapter_id || null,
+    topic_id: mapping.topic_id
+  }))
+  const { error } = await freshClient.from('question_exam_map').insert(maps)
+  if (error) throw dbError(error)
+  await freshClient.from('questions').update({ updated_at: new Date().toISOString() }).in('id', questionIds)
+  return { success: true }
+}
+
+export const fetchTopicQuestionCounts = async (topicIds) => {
+  if (!topicIds || topicIds.length === 0) return {}
+  try {
+    const query = `topic_ids=${topicIds.join(',')}`
+    const res = await adminFetch(`/exam/questions/topic-counts?${query}`, { method: 'GET' })
+    if (res && res.success) return res.data
+  } catch (err) {
+    console.warn('[fetchTopicQuestionCounts] Backend offline or error, falling back to direct Supabase select:', err.message)
+  }
+  const { data, error } = await supabase.from('question_exam_map').select('topic_id').in('topic_id', topicIds)
+  if (error) throw dbError(error)
+  const counts = {}
+  for (const id of topicIds) counts[id] = 0
+  for (const row of (data || [])) {
+    if (row.topic_id) counts[row.topic_id] = (counts[row.topic_id] || 0) + 1
+  }
+  return counts
+}
+
 // ── SUBSCRIPTION ADMIN API ─────────────────────────────────────────────────────
 
 export const fetchSubscriptionPlans = async () => {

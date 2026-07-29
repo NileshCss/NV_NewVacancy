@@ -3,7 +3,7 @@ import { fetchExams, fetchSubjects, fetchChapters, fetchTopics } from '../../../
 import { Plus, Trash, X, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-export default function QuestionEditor({ question, onSave, onCancel }) {
+export default function QuestionEditor({ question, defaultMapping, onSave, onCancel }) {
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
   const [chapters, setChapters] = useState([])
@@ -11,10 +11,10 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
 
   // Mappings state
   const [mapping, setMapping] = useState({
-    exam_id: '',
-    subject_id: '',
-    chapter_id: '',
-    topic_id: ''
+    exam_id: defaultMapping?.exam_id || '',
+    subject_id: defaultMapping?.subject_id || '',
+    chapter_id: defaultMapping?.chapter_id || '',
+    topic_id: defaultMapping?.topic_id || ''
   })
 
   const [formData, setFormData] = useState({
@@ -79,8 +79,15 @@ export default function QuestionEditor({ question, onSave, onCancel }) {
           topic_id: firstMap.topic_id || ''
         })
       }
+    } else if (defaultMapping) {
+      setMapping({
+        exam_id: defaultMapping.exam_id || defaultMapping.examId || '',
+        subject_id: defaultMapping.subject_id || defaultMapping.subjectId || '',
+        chapter_id: defaultMapping.chapter_id || defaultMapping.chapterId || '',
+        topic_id: defaultMapping.topic_id || defaultMapping.id || ''
+      })
     }
-  }, [question])
+  }, [question, defaultMapping])
 
   // Load subjects when exam changes
   useEffect(() => {
