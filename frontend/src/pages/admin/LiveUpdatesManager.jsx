@@ -1,11 +1,4 @@
-/**
- * LiveUpdatesManager.jsx
- * Admin component for managing live updates
- * Features: CRUD operations, filtering, status toggle, expiry management
- * Last Updated: April 1, 2026
- */
-
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../context/ToastContext'
 import {
@@ -17,6 +10,9 @@ import {
   getTypeLabel,
   getPriorityStyles
 } from '../../services/liveUpdateService'
+import LiveUpdatesToolbar from './live-updates/LiveUpdatesToolbar'
+import LiveUpdatesTable from './live-updates/LiveUpdatesTable'
+import { X, Plus, Edit2 } from 'lucide-react'
 
 const LiveUpdatesManager = () => {
   const queryClient = useQueryClient()
@@ -33,21 +29,18 @@ const LiveUpdatesManager = () => {
     expiry_date: ''
   })
 
-  // ============================================================================
   // QUERIES & MUTATIONS
-  // ============================================================================
-
   const { data: updates = [], isLoading } = useQuery({
     queryKey: ['live_updates_admin'],
     queryFn: fetchAllLiveUpdatesAdmin,
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 30000
   })
 
   const addMutation = useMutation({
     mutationFn: addLiveUpdate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['live_updates_admin'] })
-      toast('✅ Update added successfully', 'success')
+      toast('✅ Live update added successfully', 'success')
       resetForm()
       setShowModal(false)
     },
@@ -60,7 +53,7 @@ const LiveUpdatesManager = () => {
     mutationFn: ({ id, data }) => updateLiveUpdate(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['live_updates_admin'] })
-      toast('✅ Update modified successfully', 'success')
+      toast('✅ Live update modified successfully', 'success')
       resetForm()
       setShowModal(false)
     },
@@ -73,7 +66,7 @@ const LiveUpdatesManager = () => {
     mutationFn: deleteLiveUpdate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['live_updates_admin'] })
-      toast('✅ Update deleted successfully', 'success')
+      toast('✅ Live update deleted successfully', 'success')
     },
     onError: (error) => {
       toast(`❌ ${error.message}`, 'error')
@@ -91,10 +84,7 @@ const LiveUpdatesManager = () => {
     }
   })
 
-  // ============================================================================
   // HANDLERS
-  // ============================================================================
-
   const resetForm = () => {
     setFormData({
       title: '',
@@ -159,20 +149,14 @@ const LiveUpdatesManager = () => {
     }
   }
 
-  // ============================================================================
   // FILTERING
-  // ============================================================================
-
   const filteredUpdates = updates.filter((update) => {
     let typeMatch = filterType === 'all' || update.type === filterType
     let statusMatch = filterStatus === 'all' || update.is_active === (filterStatus === 'active')
     return typeMatch && statusMatch
   })
 
-  // ============================================================================
   // UTILITIES
-  // ============================================================================
-
   const getExpiryStatus = (expiryDate) => {
     if (!expiryDate) return { text: 'Never', color: '#10b981' }
     const expiry = new Date(expiryDate)
@@ -191,397 +175,131 @@ const LiveUpdatesManager = () => {
     return icons[type] || '📢'
   }
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
   return (
-    <div style={{ padding: '2rem' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700' }}>📢 Live Updates</h2>
-        <button
-          onClick={() => handleOpenModal()}
-          style={{
-            padding: '0.6rem 1.2rem',
-            backgroundColor: '#3b82f6',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.5rem',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '0.9rem'
-          }}
-        >
-          + Add Update
-        </button>
-      </div>
+    <div className="space-y-6">
+      {/* Toolbar with Title, CTAs, Filter dropdowns & Stat count */}
+      <LiveUpdatesToolbar
+        filterType={filterType}
+        filterStatus={filterStatus}
+        onFilterTypeChange={setFilterType}
+        onFilterStatusChange={setFilterStatus}
+        onAddClick={() => handleOpenModal()}
+        count={filteredUpdates.length}
+      />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          style={{
-            padding: '0.5rem 0.8rem',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.4rem',
-            fontSize: '0.9rem'
-          }}
-        >
-          <option value="all">All Types</option>
-          <option value="job">Job</option>
-          <option value="exam">Exam</option>
-          <option value="deadline">Deadline</option>
-          <option value="news">News</option>
-        </select>
+      {/* Workspace Table / Cards / Empty State */}
+      <LiveUpdatesTable
+        updates={filteredUpdates}
+        isLoading={isLoading}
+        onEdit={handleOpenModal}
+        onDelete={handleDelete}
+        onToggleStatus={handleToggle}
+        onAddClick={() => handleOpenModal()}
+        getTypeIcon={getTypeIcon}
+        getTypeLabel={getTypeLabel}
+        getPriorityStyles={getPriorityStyles}
+        getExpiryStatus={getExpiryStatus}
+      />
 
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          style={{
-            padding: '0.5rem 0.8rem',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.4rem',
-            fontSize: '0.9rem'
-          }}
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-
-        <div style={{ fontSize: '0.9rem', color: '#6b7280', paddingTop: '0.5rem' }}>
-          {filteredUpdates.length} update{filteredUpdates.length !== 1 ? 's' : ''}
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-          Loading updates...
-        </div>
-      )}
-
-      {/* Table */}
-      {!isLoading && (
-        <div style={{ overflowX: 'auto', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '0.9rem'
-            }}
-          >
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600' }}>Title</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600' }}>Type</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600' }}>Priority</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600' }}>Expiry</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600' }}>Status</th>
-                <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUpdates.length === 0 ? (
-                <tr>
-                  <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
-                    No updates found
-                  </td>
-                </tr>
-              ) : (
-                filteredUpdates.map((update) => (
-                  <tr key={update.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    {/* Title */}
-                    <td style={{ padding: '1rem' }}>
-                      <div>
-                        <div style={{ fontWeight: '500' }}>{update.title}</div>
-                        {update.link && (
-                          <div
-                            style={{
-                              fontSize: '0.8rem',
-                              color: '#3b82f6',
-                              wordBreak: 'break-all',
-                              marginTop: '0.25rem'
-                            }}
-                          >
-                            {update.link}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Type */}
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{ fontSize: '1.2rem', marginRight: '0.5rem' }}>
-                        {getTypeIcon(update.type)}
-                      </span>
-                      {getTypeLabel(update.type)}
-                    </td>
-
-                    {/* Priority */}
-                    <td style={{ padding: '1rem' }}>
-                      <span
-                        style={{
-                          ...getPriorityStyles(update.priority),
-                          padding: '0.25rem 0.75rem',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        {update.priority === 'urgent' ? '🔴 Urgent' : 'Normal'}
-                      </span>
-                    </td>
-
-                    {/* Expiry */}
-                    <td style={{ padding: '1rem' }}>
-                      {(() => {
-                        const status = getExpiryStatus(update.expiry_date)
-                        return (
-                          <div
-                            style={{
-                              color: status.color,
-                              fontSize: '0.85rem',
-                              fontWeight: '500'
-                            }}
-                          >
-                            {status.text}
-                          </div>
-                        )
-                      })()}
-                    </td>
-
-                    {/* Status Toggle */}
-                    <td style={{ padding: '1rem' }}>
-                      <button
-                        onClick={() => handleToggle(update.id, update.is_active)}
-                        style={{
-                          background: update.is_active
-                            ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-                            : 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '0.4rem 0.8rem',
-                          borderRadius: '0.4rem',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          fontWeight: '600',
-                          transition: 'all 0.3s ease'
-                        }}
-                      >
-                        {update.is_active ? '✓ Active' : 'Inactive'}
-                      </button>
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleOpenModal(update)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#3b82f6',
-                          cursor: 'pointer',
-                          fontSize: '0.9rem',
-                          marginRight: '0.8rem',
-                          fontWeight: '600'
-                        }}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(update.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#ef4444',
-                          cursor: 'pointer',
-                          fontSize: '0.9rem',
-                          fontWeight: '600'
-                        }}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Modal */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50
-          }}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={handleCloseModal}
         >
           <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '0.75rem',
-              padding: '2rem',
-              maxWidth: '500px',
-              width: '90%',
-              boxShadow: '0 20px 25px rgba(0, 0, 0, 0.15)'
-            }}
+            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.25rem', fontWeight: '700' }}>
-              {editingId ? '✏️ Edit Update' : '➕ Add New Update'}
-            </h3>
+            <div className="flex justify-between items-center border-b border-[var(--border)] pb-3">
+              <h3 className="font-bold text-base text-[var(--text-primary)] flex items-center gap-2">
+                {editingId ? <Edit2 className="text-blue-500" size={18} /> : <Plus className="text-orange-500" size={18} />}
+                <span>{editingId ? 'Edit Live Update' : 'Add New Live Update'}</span>
+              </h3>
+              <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               {/* Title */}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Title *
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-[var(--text-primary)]">Title *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="E.g., Senior Developer wanted at TechCorp"
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.4rem',
-                    fontSize: '0.9rem',
-                    boxSizing: 'border-box'
-                  }}
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-orange-500"
                 />
               </div>
 
               {/* Link */}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Link (Optional)
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-[var(--text-primary)]">Link (Optional)</label>
                 <input
                   type="url"
                   value={formData.link}
                   onChange={(e) => setFormData({ ...formData, link: e.target.value })}
                   placeholder="https://example.com/job"
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.4rem',
-                    fontSize: '0.9rem',
-                    boxSizing: 'border-box'
-                  }}
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-orange-500"
                 />
               </div>
 
-              {/* Type */}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Type *
-                </label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.4rem',
-                    fontSize: '0.9rem'
-                  }}
-                >
-                  <option value="job">🧾 Job</option>
-                  <option value="exam">🎓 Exam</option>
-                  <option value="deadline">⏰ Deadline</option>
-                  <option value="news">📰 News</option>
-                </select>
-              </div>
+              {/* Type & Priority Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-[var(--text-primary)]">Type *</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] font-semibold focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="job">🧾 Job</option>
+                    <option value="exam">🎓 Exam</option>
+                    <option value="deadline">⏰ Deadline</option>
+                    <option value="news">📰 News</option>
+                  </select>
+                </div>
 
-              {/* Priority */}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Priority
-                </label>
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.4rem',
-                    fontSize: '0.9rem'
-                  }}
-                >
-                  <option value="normal">Normal</option>
-                  <option value="urgent">🔴 Urgent</option>
-                </select>
+                <div className="space-y-1">
+                  <label className="font-bold text-[var(--text-primary)]">Priority</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] font-semibold focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="urgent">🔴 Urgent</option>
+                  </select>
+                </div>
               </div>
 
               {/* Expiry Date */}
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Expiry Date (Optional)
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-[var(--text-primary)]">Expiry Date (Optional)</label>
                 <input
                   type="date"
                   value={formData.expiry_date}
                   onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.4rem',
-                    fontSize: '0.9rem',
-                    boxSizing: 'border-box'
-                  }}
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-orange-500"
                 />
-                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                  Leave empty for no expiry
-                </div>
+                <div className="text-[10px] text-[var(--text-muted)]">Leave empty for no expiry</div>
               </div>
 
-              {/* Buttons */}
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              {/* Action Buttons */}
+              <div className="flex gap-2 justify-end pt-3 border-t border-[var(--border)]">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  style={{
-                    padding: '0.6rem 1.2rem',
-                    border: '1px solid #d1d5db',
-                    backgroundColor: '#fff',
-                    borderRadius: '0.4rem',
-                    cursor: 'pointer',
-                    fontWeight: '600',
-                    fontSize: '0.9rem'
-                  }}
+                  className="px-4 py-2 bg-[var(--bg-surface)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-xl text-xs font-semibold transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addMutation.isPending || updateMutation.isPending}
-                  style={{
-                    padding: '0.6rem 1.2rem',
-                    backgroundColor: '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '0.4rem',
-                    cursor: 'pointer',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                    opacity: addMutation.isPending || updateMutation.isPending ? 0.7 : 1
-                  }}
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50"
                 >
                   {editingId ? 'Update' : 'Create'}
                 </button>

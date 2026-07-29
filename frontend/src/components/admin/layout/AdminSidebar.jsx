@@ -47,6 +47,12 @@ const SIDEBAR_SECTIONS = [
       { id: 'ai', label: 'AI Assistant', icon: Bot },
       { id: 'scraper', label: 'AI Scraper', icon: Cpu },
     ]
+  },
+  {
+    title: 'Utility',
+    items: [
+      { id: 'back_to_site', label: 'Back to Site', icon: ExternalLink, isAction: true },
+    ]
   }
 ]
 
@@ -90,6 +96,23 @@ export default function AdminSidebar({ currentSection, onSelectSection, isMobile
                 {sec.items.map(item => {
                   const Icon = item.icon
                   const isActive = currentSection === item.id
+
+                  if (item.isAction) {
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => navigate('home')}
+                        className="w-full px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-[var(--border)] transition flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Icon size={16} className="text-orange-500" />
+                          <span>{item.label}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)]">↵</span>
+                      </button>
+                    )
+                  }
+
                   return (
                     <button
                       key={item.id}
@@ -114,19 +137,6 @@ export default function AdminSidebar({ currentSection, onSelectSection, isMobile
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Utility Section at Bottom */}
-        <div className="p-3 border-t border-[var(--border)] bg-[var(--bg-surface)]/50">
-          <button
-            onClick={() => navigate('home')}
-            className="w-full px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] border border-[var(--border)] transition flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2">
-              <ExternalLink size={15} /> Back to Site
-            </span>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">↵</span>
-          </button>
         </div>
       </aside>
     </>
